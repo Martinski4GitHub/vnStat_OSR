@@ -214,24 +214,4 @@ See here for default view: https://imgur.com/a/ufMQgeA
 * Please publish any modifications or improvements back for the general community to benefit.
 
 
-### Who do I contact with comments or questions? ###
-
-* Repo owner or admin - dev_null @ snbforums
-* Other community or team contact - dev_null or Jack Yaz @ snbforums
-
-
-#
-# Donations
-
-* If you like this software and wish to make a donation, the author requests that you make a contribution to __your favorite local charity__, or to one of his:
-
-    http://www.careandshareofel.org/monetary-donations.html
-    
-    https://www.uri.edu/giving/
-    
-    https://www.uwsect.org/give
-    
-* Some employers will __match your charitable donation__ amount, multiplying your contribution. Ask your manager or HR representative.
-* Let's pay it forward and thanks for your consideration!
-
 
