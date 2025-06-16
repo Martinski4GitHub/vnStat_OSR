@@ -35,7 +35,7 @@ p{font-weight:bolder}thead.collapsible-jquery{color:#fff;padding:0;width:100%;bo
 <script>
 
 /**----------------------------------------**/
-/** Modified by Martinski W. [2025-May-11] **/
+/** Modified by Martinski W. [2025-Jun-16] **/
 /**----------------------------------------**/
 
 var custom_settings;
@@ -88,8 +88,12 @@ var maxNoCharts=12,currentNoCharts=0,ShowTrendlines=GetCookie("ShowTrendlines","
 <tr bgcolor="#4D595D">
 <td valign="top">
 <div id="datausagewarning">
-<div style="float:right;color:#FFFF00;font-weight:bold;font-size:14px;padding-top:2px;margin-right:10px;"><a class="hintstyle usagehint" href="javascript:void(0);" onclick="UsageHint();">Data usage warning</a></div>
-<div style="height:30px;width:24px;overflow:hidden;float:right;"><a class="hintstyle usagehint" href="javascript:void(0);" onclick="UsageHint();"><img src="/images/New_ui/notification.png" style=""></a></div>
+<div style="float:right;color:#FFFF00;font-weight:bold;font-size:14px;padding-top:2px;margin-left:6px;margin-right:12px;">
+   <a class="hintstyle usagehint" href="javascript:void(0);" onclick="UsageHint();">Data Usage Warning</a>
+</div>
+<div style="height:27px;width:24px;overflow:hidden;float:right;">
+   <a class="hintstyle usagehint" href="javascript:void(0);" onclick="UsageHint();"><img src="/images/New_ui/notification.png" style=""></a>
+</div>
 </div>
 <div>&nbsp;</div>
 <div class="formfonttitle" id="scripttitle" style="text-align:center;margin-left:166px;">vnStat-on-Merlin</div>
@@ -151,7 +155,7 @@ var maxNoCharts=12,currentNoCharts=0,ShowTrendlines=GetCookie("ShowTrendlines","
 <tr class="even" id="rowdataallowance">
 <td class="settingname">Bandwidth allowance for data usage warnings
 <br />
-<a href="https://github.com/de-vnull/vnstat-on-merlin/blob/main/more-info.md#Data-limits" target="_blank" style="color:#FFCC00;">More info</a>
+<a href="https://github.com/AMTM-OSR/vnstat-on-merlin/blob/main/more-info.md#Data-limits" target="_blank" style="color:#FFCC00;">More info</a>
 </td>
 <td class="settingvalue">
 <input autocomplete="off" type="text" maxlength="8" class="input_12_table removespacing" name="dnvnstat_dataallowance" value="1200.00" onkeypress="return validator.isNumberFloat(this, event)" onkeyup="Validate_DataAllowance(this)" onblur="Validate_DataAllowance(this);Format_DataAllowance(this)" />
@@ -169,7 +173,7 @@ var maxNoCharts=12,currentNoCharts=0,ShowTrendlines=GetCookie("ShowTrendlines","
 </tr>
 <tr class="even" id="rowmonthrotate">
 <td class="settingname">Start day for bandwidth allowance cycle<br />
-<a href="https://github.com/de-vnull/vnstat-on-merlin/blob/main/more-info.md#MonthRotate" target="_blank" style="color:#FFCC00;">More info</a>
+<a href="https://github.com/AMTM-OSR/vnstat-on-merlin/blob/main/more-info.md#MonthRotate" target="_blank" style="color:#FFCC00;">More info</a>
 </td>
 <td class="settingvalue">Day&nbsp;
 <input autocomplete="off" type="text" maxlength="2" class="input_3_table removespacing" name="dnvnstat_monthrotate" value="1" onkeypress="return validator.isNumber(this, event)" onkeyup="Validate_AllowanceStartDay(this)" onblur="Validate_AllowanceStartDay(this)" />
@@ -208,7 +212,7 @@ var maxNoCharts=12,currentNoCharts=0,ShowTrendlines=GetCookie("ShowTrendlines","
 <tr>
 <th width="20%">Data usage for current cycle
 <br />
-<a href="https://github.com/de-vnull/vnstat-on-merlin/blob/main/more-info.md#Units" target="_blank" style="color:#FFCC00;">More info</a>
+<a href="https://github.com/AMTM-OSR/vnstat-on-merlin/blob/main/more-info.md#Units" target="_blank" style="color:#FFCC00;">More info</a>
 </th>
 <td><span id="spandatausage" style="color:#FFFFFF;"></span></td>
 </tr>
@@ -403,7 +407,7 @@ Please use option 1 at the dn-vnstat CLI menu to create it</textarea>
 </td>
 </tr>
 </table>
-<p align="right"><small><i>vnStat-on-Merlin: concept by dev_null & implemented by Jack Yaz - <a href="https://github.com/de-vnull/vnstat-on-merlin" target="_blank" style="color:#FFCC00;">vnStat-on-Merlin Github</a></i></small></td>
+<p align="center"><small><i>vnStat-on-Merlin: concept by dev_null & implemented by Jack Yaz - <a href="https://github.com/AMTM-OSR/vnstat-on-merlin" target="_blank" style="color:#FFCC00;">vnStat-on-Merlin GitHub</a></i></small></td>
 </tr>
 </tbody>
 </table>

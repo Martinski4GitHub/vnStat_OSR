@@ -1,17 +1,18 @@
 #!/bin/sh
 
-#################################################
-##                                             ##
-##             vnStat on Merlin                ##
-##        for AsusWRT-Merlin routers           ##
-##                                             ##
-##            Concept by dev_null              ##
-##          Implemented by Jack Yaz            ##
-##    github.com/de-vnull/vnstat-on-merlin     ##
-##                                             ##
-#################################################
-# Last Modified: 2025-May-01
-#------------------------------------------------
+##############################################################
+##                                                          ##
+##                     vnStat on Merlin                     ##
+##                for AsusWRT-Merlin routers                ##
+##                                                          ##
+##                    Concept by dev_null                   ##
+##                  Implemented by Jack Yaz                 ##
+##       https://github.com/AMTM-OSR/vnstat-on-merlin       ##
+## Forked from https://github.com/de-vnull/vnstat-on-merlin ##
+##                                                          ##
+##############################################################
+# Last Modified: 2025-Jun-16
+#-------------------------------------------------------------
 
 ########         Shellcheck directives     ######
 # shellcheck disable=SC1091
@@ -32,15 +33,16 @@
 
 ### Start of script variables ###
 readonly SCRIPT_NAME="dn-vnstat"
-readonly SCRIPT_VERSION="v2.0.7"
+readonly SCRIPT_VERSION="v2.0.8"
+readonly SCRIPT_VERSTAG="25061610"
 SCRIPT_BRANCH="main"
-SCRIPT_REPO="https://raw.githubusercontent.com/de-vnull/vnstat-on-merlin/$SCRIPT_BRANCH"
+SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/vnstat-on-merlin/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
 readonly SCRIPT_WEBPAGE_DIR="$(readlink -f /www/user)"
 readonly SCRIPT_WEB_DIR="$SCRIPT_WEBPAGE_DIR/$SCRIPT_NAME"
 readonly TEMP_MENU_TREE="/tmp/menuTree.js"
 readonly SHARED_DIR="/jffs/addons/shared-jy"
-readonly SHARED_REPO="https://raw.githubusercontent.com/jackyaz/shared-jy/master"
+readonly SHARED_REPO="https://raw.githubusercontent.com/AMTM-OSR/shared-jy/master"
 readonly SHARED_WEB_DIR="$SCRIPT_WEBPAGE_DIR/shared-jy"
 
 [ -z "$(nvram get odmpid)" ] && ROUTER_MODEL="$(nvram get productid)" || ROUTER_MODEL="$(nvram get odmpid)"
@@ -57,7 +59,7 @@ readonly webPageLineTabExp="\{url: \"$webPageFileRegExp\", tabName: "
 readonly webPageLineRegExp="${webPageLineTabExp}\"$SCRIPT_NAME\"\},"
 readonly BEGIN_MenuAddOnsTag="/\*\*BEGIN:_AddOns_\*\*/"
 readonly ENDIN_MenuAddOnsTag="/\*\*ENDIN:_AddOns_\*\*/"
-readonly SHARE_TEMP_DIR="/opt/share/tmp"
+readonly scriptVERINFO="[${SCRIPT_VERSION}_${SCRIPT_VERSTAG}, Branch: $SCRIPT_BRANCH]"
 
 readonly oneHrSec=3600
 readonly _12Hours=43200
@@ -69,6 +71,14 @@ readonly ei8MByte=8388608
 readonly ni9MByte=9437184
 readonly tenMByte=10485760
 readonly oneGByte=1073741824
+readonly SHARE_TEMP_DIR="/opt/share/tmp"
+
+##-------------------------------------##
+## Added by Martinski W. [2025-Jun-16] ##
+##-------------------------------------##
+readonly sqlDBLogFileSize=102400
+readonly sqlDBLogDateTime="%Y-%m-%d %H:%M:%S"
+readonly sqlDBLogFileName="${SCRIPT_NAME}_DBSQL_DEBUG.LOG"
 
 ### End of script variables ###
 
@@ -581,6 +591,35 @@ Create_Symlinks()
 	fi
 }
 
+##-------------------------------------##
+## Added by Martinski W. [2025-Jun-16] ##
+##-------------------------------------##
+_GetConfigParam_()
+{
+   if [ $# -eq 0 ] || [ -z "$1" ]
+   then echo '' ; return 1 ; fi
+
+   local keyValue  checkFile
+   local defValue="$([ $# -eq 2 ] && echo "$2" || echo '')"
+
+   if [ ! -s "$SCRIPT_CONF" ]
+   then echo "$defValue" ; return 0 ; fi
+
+   if [ "$(grep -c "^${1}=" "$SCRIPT_CONF")" -gt 1 ]
+   then  ## Remove duplicates. Keep ONLY the 1st key ##
+       checkFile="${SCRIPT_CONF}.DUPKEY.txt"
+       awk "!(/^${1}=/ && dup[/^${1}=/]++)" "$SCRIPT_CONF" > "$checkFile"
+       if diff -q "$checkFile" "$SCRIPT_CONF" >/dev/null 2>&1
+       then rm -f "$checkFile"
+       else mv -f "$checkFile" "$SCRIPT_CONF"
+       fi
+   fi
+
+   keyValue="$(grep "^${1}=" "$SCRIPT_CONF" | cut -d'=' -f2)"
+   echo "${keyValue:=$defValue}"
+   return 0
+}
+
 ##----------------------------------------##
 ## Modified by Martinski W. [2025-May-01] ##
 ##----------------------------------------##
@@ -971,7 +1010,8 @@ _CheckFor_WebGUI_Page_()
    then Mount_WebUI ; fi
 }
 
-Shortcut_Script(){
+Shortcut_Script()
+{
 	case $1 in
 		create)
 			if [ -d /opt/bin ] && [ ! -f "/opt/bin/$SCRIPT_NAME" ] && [ -f "/jffs/scripts/$SCRIPT_NAME" ]; then
@@ -1004,7 +1044,8 @@ Check_Requirements()
 {
 	CHECKSFAILED="false"
 
-	if [ "$(nvram get jffs2_scripts)" -ne 1 ]; then
+	if [ "$(nvram get jffs2_scripts)" -ne 1 ]
+	then
 		nvram set jffs2_scripts=1
 		nvram commit
 		Print_Output true "Custom JFFS Scripts enabled" "$WARN"
@@ -1069,7 +1110,7 @@ Get_WAN_IFace()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-May-01] ##
+## Modified by Martinski W. [2025-Jun-16] ##
 ##----------------------------------------##
 ScriptStorageLocation()
 {
@@ -1121,8 +1162,8 @@ ScriptStorageLocation()
 			sleep 1
 		;;
 		check)
-			STORAGELOCATION="$(grep "^STORAGELOCATION=" "$SCRIPT_CONF" | cut -f2 -d"=")"
-			echo "${STORAGELOCATION:=jffs}"
+			STORAGELOCATION="$(_GetConfigParam_ STORAGELOCATION jffs)"
+			echo "$STORAGELOCATION"
 		;;
 		load)
 			STORAGELOCATION="$(ScriptStorageLocation check)"
@@ -1136,6 +1177,7 @@ ScriptStorageLocation()
 			chmod 777 "$SCRIPT_STORAGE_DIR"
 			CSV_OUTPUT_DIR="$SCRIPT_STORAGE_DIR/csv"
 			IMAGE_OUTPUT_DIR="$SCRIPT_STORAGE_DIR/images"
+			VNSTAT_DBASE="$(_GetVNStatDatabaseFilePath_)"
 			VNSTAT_COMMAND="vnstat --config $VNSTAT_CONFIG"
 			VNSTATI_COMMAND="vnstati --config $VNSTAT_CONFIG"
 			VNSTAT_OUTPUT_FILE="$SCRIPT_STORAGE_DIR/vnstat.txt"
@@ -1145,6 +1187,9 @@ ScriptStorageLocation()
 	esac
 }
 
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-16] ##
+##----------------------------------------##
 OutputTimeMode()
 {
 	case "$1" in
@@ -1157,8 +1202,8 @@ OutputTimeMode()
 			Generate_CSVs
 		;;
 		check)
-			OUTPUTTIMEMODE="$(grep "^OUTPUTTIMEMODE=" "$SCRIPT_CONF" | cut -f2 -d"=")"
-			echo "${OUTPUTTIMEMODE:=unix}"
+			OUTPUTTIMEMODE="$(_GetConfigParam_ OUTPUTTIMEMODE unix)"
+			echo "$OUTPUTTIMEMODE"
 		;;
 	esac
 }
@@ -1364,8 +1409,11 @@ JFFS_WarningLogTime()
            sed -i 's/^JFFS_MSGLOGTIME=.*$/JFFS_MSGLOGTIME='"$2"'/' "$SCRIPT_CONF"
            ;;
        check)
-           JFFS_MSGLOGTIME="$(grep "^JFFS_MSGLOGTIME=" "$SCRIPT_CONF" | cut -f2 -d'=')"
-           echo "${JFFS_MSGLOGTIME:=0}"
+           JFFS_MSGLOGTIME="$(_GetConfigParam_ JFFS_MSGLOGTIME 0)"
+           if ! echo "$JFFS_MSGLOGTIME" | grep -qE "^[0-9]+$"
+           then JFFS_MSGLOGTIME=0
+           fi
+           echo "$JFFS_MSGLOGTIME"
            ;;
    esac
 }
@@ -1468,8 +1516,104 @@ _GetInterfaceNameFromConfig_()
     return 0
 }
 
+##-------------------------------------##
+## Added by Martinski W. [2025-Jun-16] ##
+##-------------------------------------##
+_SQLCheckDBLogFileSize_()
+{
+   if [ "$(_GetFileSize_ "$sqlDBLogFilePath")" -gt "$sqlDBLogFileSize" ]
+   then
+       cp -fp "$sqlDBLogFilePath" "${sqlDBLogFilePath}.BAK"
+       echo -n > "$sqlDBLogFilePath"
+   fi
+}
+
+_SQLGetDBLogTimeStamp_()
+{ printf "[$(date +"$sqlDBLogDateTime")]" ; }
+
+##-------------------------------------##
+## Added by Martinski W. [2025-Jun-16] ##
+##-------------------------------------##
+_ApplyDatabaseSQLCmds_()
+{
+    local errorCount=0  maxErrorCount=3  callFlag
+    local triesCount=0  maxTriesCount=10  sqlErrorMsg
+    local tempLogFilePath="/tmp/${SCRIPT_NAME}_TMP_$$.LOG"
+    local debgLogFilePath="/tmp/${SCRIPT_NAME}_DEBUG_$$.LOG"
+    local debgLogSQLcmds=false
+
+    if [ $# -gt 1 ] && [ -n "$2" ]
+    then callFlag="$2"
+    else callFlag="err"
+    fi
+
+    resultStr=""
+    foundError=false ; foundLocked=false
+    rm -f "$tempLogFilePath" "$debgLogFilePath"
+
+    while [ "$errorCount" -lt "$maxErrorCount" ] && \
+          [ "$((triesCount++))" -lt "$maxTriesCount" ]
+    do
+        if "$SQLITE3_PATH" "$VNSTAT_DBASE" < "$1" >> "$tempLogFilePath" 2>&1
+        then foundError=false ; foundLocked=false ; break
+        fi
+        sqlErrorMsg="$(cat "$tempLogFilePath")"
+
+        if echo "$sqlErrorMsg" | grep -qE "^(Parse error|Runtime error|Error:|Illegal instruction)"
+        then
+            if echo "$sqlErrorMsg" | grep -qE "^(Parse|Runtime) error .*: database is locked"
+            then
+                foundLocked=true ; maxTriesCount=25
+                echo -n > "$tempLogFilePath"  ##Clear for next error found##
+                sleep 2 ; continue
+            fi
+            errorCount="$((errorCount + 1))"
+            foundError=true ; foundLocked=false
+            Print_Output true "SQLite3 failure[$callFlag]: $sqlErrorMsg" "$ERR"
+        fi
+
+        if ! "$debgLogSQLcmds"
+        then
+           debgLogSQLcmds=true
+           {
+              echo "==========================================="
+              echo "$(_SQLGetDBLogTimeStamp_) BEGIN [$callFlag]"
+              echo "Database: $VNSTAT_DBASE"
+           } > "$debgLogFilePath"
+        fi
+        cat "$tempLogFilePath" >> "$debgLogFilePath"
+        echo -n > "$tempLogFilePath"  ##Clear for next error found##
+        [ "$triesCount" -ge "$maxTriesCount" ] && break
+        [ "$errorCount" -ge "$maxErrorCount" ] && break
+        sleep 1
+    done
+
+    if "$debgLogSQLcmds"
+    then
+       {
+          echo "--------------------------------"
+          cat "$1"
+          echo "--------------------------------"
+          echo "$(_SQLGetDBLogTimeStamp_) END [$callFlag]"
+       } >> "$debgLogFilePath"
+       cat "$debgLogFilePath" >> "$sqlDBLogFilePath"
+    fi
+
+    rm -f "$tempLogFilePath" "$debgLogFilePath"
+    if "$foundError"
+    then resultStr="reported error(s)."
+    elif "$foundLocked"
+    then resultStr="found database locked."
+    else resultStr="completed successfully."
+    fi
+    if "$foundError" || "$foundLocked"
+    then
+        Print_Output true "SQLite process ${resultStr}" "$ERR"
+    fi
+}
+
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Apr-28] ##
+## Modified by Martinski W. [2025-Jun-16] ##
 ##----------------------------------------##
 Generate_CSVs()
 {
@@ -1484,55 +1628,58 @@ Generate_CSVs()
 	TZ=$(cat /etc/TZ)
 	export TZ
 
-	timenow=$(date +"%s")
+	timenow="$(date +"%s")"
 
 	{
 		echo ".headers off"
 		echo ".output /tmp/dn-vnstatiface"
+		echo "PRAGMA temp_store=1;"
 		echo "SELECT id FROM [interface] WHERE [name] = '$interface';"
 	} > /tmp/dn-vnstat.sql
-	"$SQLITE3_PATH" "$VNSTAT_DBASE" < /tmp/dn-vnstat.sql
+	_ApplyDatabaseSQLCmds_ /tmp/dn-vnstat.sql gnr1
+
 	interfaceid="$(cat /tmp/dn-vnstatiface)"
 	rm -f /tmp/dn-vnstatiface
 
-	intervallist="fiveminute hour day"
-
-	for interval in $intervallist
+	intervalList="fiveminute hour day"
+	for interval in $intervalList
 	do
-		metriclist="rx tx"
-
-		for metric in $metriclist
+		metricList="rx tx"
+		for metric in $metricList
 		do
 			{
 				echo ".mode csv"
 				echo ".headers off"
 				echo ".output $CSV_OUTPUT_DIR/${metric}daily.tmp"
+				echo "PRAGMA temp_store=1;"
 				echo "SELECT '$metric' Metric,strftime('%s',[date],'utc') Time,[$metric] Value FROM $interval WHERE [interface] = '$interfaceid' AND strftime('%s',[date],'utc') >= strftime('%s',datetime($timenow,'unixepoch','-1 day'));"
 			} > /tmp/dn-vnstat.sql
-			"$SQLITE3_PATH" "$VNSTAT_DBASE" < /tmp/dn-vnstat.sql
+			_ApplyDatabaseSQLCmds_ /tmp/dn-vnstat.sql gnr2
 
 			{
 				echo ".mode csv"
 				echo ".headers off"
 				echo ".output $CSV_OUTPUT_DIR/${metric}weekly.tmp"
+				echo "PRAGMA temp_store=1;"
 				echo "SELECT '$metric' Metric,strftime('%s',[date],'utc') Time,[$metric] Value FROM $interval WHERE [interface] = '$interfaceid' AND strftime('%s',[date],'utc') >= strftime('%s',datetime($timenow,'unixepoch','-7 day'));"
 			} > /tmp/dn-vnstat.sql
-			"$SQLITE3_PATH" "$VNSTAT_DBASE" < /tmp/dn-vnstat.sql
+			_ApplyDatabaseSQLCmds_ /tmp/dn-vnstat.sql gnr3
 
 			{
 				echo ".mode csv"
 				echo ".headers off"
 				echo ".output $CSV_OUTPUT_DIR/${metric}monthly.tmp"
+				echo "PRAGMA temp_store=1;"
 				echo "SELECT '$metric' Metric,strftime('%s',[date],'utc') Time,[$metric] Value FROM $interval WHERE [interface] = '$interfaceid' AND strftime('%s',[date],'utc') >= strftime('%s',datetime($timenow,'unixepoch','-30 day'));"
 			} > /tmp/dn-vnstat.sql
-			"$SQLITE3_PATH" "$VNSTAT_DBASE" < /tmp/dn-vnstat.sql
+			_ApplyDatabaseSQLCmds_ /tmp/dn-vnstat.sql gnr4
 
 			rm -f /tmp/dn-vnstat.sql
 		done
 
-		cat "$CSV_OUTPUT_DIR/rxdaily.tmp" "$CSV_OUTPUT_DIR/txdaily.tmp" > "$CSV_OUTPUT_DIR/DataUsage_${interval}_daily.htm" 2> /dev/null
-		cat "$CSV_OUTPUT_DIR/rxweekly.tmp" "$CSV_OUTPUT_DIR/txweekly.tmp" > "$CSV_OUTPUT_DIR/DataUsage_${interval}_weekly.htm" 2> /dev/null
-		cat "$CSV_OUTPUT_DIR/rxmonthly.tmp" "$CSV_OUTPUT_DIR/txmonthly.tmp" > "$CSV_OUTPUT_DIR/DataUsage_${interval}_monthly.htm" 2> /dev/null
+		cat "$CSV_OUTPUT_DIR/rxdaily.tmp" "$CSV_OUTPUT_DIR/txdaily.tmp" > "$CSV_OUTPUT_DIR/DataUsage_${interval}_daily.htm" 2>/dev/null
+		cat "$CSV_OUTPUT_DIR/rxweekly.tmp" "$CSV_OUTPUT_DIR/txweekly.tmp" > "$CSV_OUTPUT_DIR/DataUsage_${interval}_weekly.htm" 2>/dev/null
+		cat "$CSV_OUTPUT_DIR/rxmonthly.tmp" "$CSV_OUTPUT_DIR/txmonthly.tmp" > "$CSV_OUTPUT_DIR/DataUsage_${interval}_monthly.htm" 2>/dev/null
 
 		sed -i 's/rx/Received/g;s/tx/Sent/g;1i Metric,Time,Value' "$CSV_OUTPUT_DIR/DataUsage_${interval}_daily.htm"
 		sed -i 's/rx/Received/g;s/tx/Sent/g;1i Metric,Time,Value' "$CSV_OUTPUT_DIR/DataUsage_${interval}_weekly.htm"
@@ -1542,58 +1689,62 @@ Generate_CSVs()
 		rm -f "$CSV_OUTPUT_DIR/tx"*
 	done
 
-	metriclist="rx tx"
-
-	for metric in $metriclist
+	metricList="rx tx"
+	for metric in $metricList
 	do
 		{
 			echo ".mode csv"
 			echo ".headers off"
 			echo ".output $CSV_OUTPUT_DIR/week_this_${metric}.tmp"
+			echo "PRAGMA temp_store=1;"
 			echo "SELECT '$metric' Metric,strftime('%w', [date]) Time,[$metric] Value FROM day WHERE [interface] = '$interfaceid' AND strftime('%s',[date],'utc') >= strftime('%s',datetime($timenow,'unixepoch','start of day','+1 day','-7 day'));"
 		} > /tmp/dn-vnstat.sql
-		"$SQLITE3_PATH" "$VNSTAT_DBASE" < /tmp/dn-vnstat.sql
+		_ApplyDatabaseSQLCmds_ /tmp/dn-vnstat.sql gnr5
 
 		{
 			echo ".mode csv"
 			echo ".headers off"
 			echo ".output $CSV_OUTPUT_DIR/week_prev_${metric}.tmp"
+			echo "PRAGMA temp_store=1;"
 			echo "SELECT '$metric' Metric,strftime('%w', [date]) Time,[$metric] Value FROM day WHERE [interface] = '$interfaceid' AND strftime('%s',[date],'utc') < strftime('%s',datetime($timenow,'unixepoch','start of day','+1 day','-7 day')) AND strftime('%s',[date],'utc') >= strftime('%s',datetime($timenow,'unixepoch','start of day','+1 day','-14 day'));"
 		} > /tmp/dn-vnstat.sql
-		"$SQLITE3_PATH" "$VNSTAT_DBASE" < /tmp/dn-vnstat.sql
+		_ApplyDatabaseSQLCmds_ /tmp/dn-vnstat.sql gnr6
 
 		{
 			echo ".mode csv"
 			echo ".headers off"
 			echo ".output $CSV_OUTPUT_DIR/week_summary_this_${metric}.tmp"
+			echo "PRAGMA temp_store=1;"
 			echo "SELECT '$metric' Metric,'Current 7 days' Time,IFNULL(SUM([$metric]),'0') Value FROM day WHERE [interface] = '$interfaceid' AND strftime('%s',[date],'utc') >= strftime('%s',datetime($timenow,'unixepoch','start of day','+1 day','-7 day'));"
 		} > /tmp/dn-vnstat.sql
-		"$SQLITE3_PATH" "$VNSTAT_DBASE" < /tmp/dn-vnstat.sql
+		_ApplyDatabaseSQLCmds_ /tmp/dn-vnstat.sql gnr7
 
 		{
 			echo ".mode csv"
 			echo ".headers off"
 			echo ".output $CSV_OUTPUT_DIR/week_summary_prev_${metric}.tmp"
+			echo "PRAGMA temp_store=1;"
 			echo "SELECT '$metric' Metric,'Previous 7 days' Time,IFNULL(SUM([$metric]),'0') Value FROM day WHERE [interface] = '$interfaceid' AND strftime('%s',[date],'utc') < strftime('%s',datetime($timenow,'unixepoch','start of day','+1 day','-7 day')) AND strftime('%s',[date],'utc') >= strftime('%s',datetime($timenow,'unixepoch','start of day','+1 day','-14 day'));"
 		} > /tmp/dn-vnstat.sql
-		"$SQLITE3_PATH" "$VNSTAT_DBASE" < /tmp/dn-vnstat.sql
+		_ApplyDatabaseSQLCmds_ /tmp/dn-vnstat.sql gnr8
 
 		{
 			echo ".mode csv"
 			echo ".headers off"
 			echo ".output $CSV_OUTPUT_DIR/week_summary_prev2_${metric}.tmp"
+			echo "PRAGMA temp_store=1;"
 			echo "SELECT '$metric' Metric,'2 weeks ago' Time,IFNULL(SUM([$metric]),'0') Value FROM day WHERE [interface] = '$interfaceid' AND strftime('%s',[date],'utc') < strftime('%s',datetime($timenow,'unixepoch','start of day','+1 day','-14 day')) AND strftime('%s',[date],'utc') >= strftime('%s',datetime($timenow,'unixepoch','start of day','+1 day','-21 day'));"
 		} > /tmp/dn-vnstat.sql
-		"$SQLITE3_PATH" "$VNSTAT_DBASE" < /tmp/dn-vnstat.sql
+		_ApplyDatabaseSQLCmds_ /tmp/dn-vnstat.sql gnr9
 	done
 
-	cat "$CSV_OUTPUT_DIR/week_this_rx.tmp" "$CSV_OUTPUT_DIR/week_this_tx.tmp" > "$CSV_OUTPUT_DIR/WeekThis.htm" 2> /dev/null
-	cat "$CSV_OUTPUT_DIR/week_prev_rx.tmp" "$CSV_OUTPUT_DIR/week_prev_tx.tmp" > "$CSV_OUTPUT_DIR/WeekPrev.htm" 2> /dev/null
+	cat "$CSV_OUTPUT_DIR/week_this_rx.tmp" "$CSV_OUTPUT_DIR/week_this_tx.tmp" > "$CSV_OUTPUT_DIR/WeekThis.htm" 2>/dev/null
+	cat "$CSV_OUTPUT_DIR/week_prev_rx.tmp" "$CSV_OUTPUT_DIR/week_prev_tx.tmp" > "$CSV_OUTPUT_DIR/WeekPrev.htm" 2>/dev/null
 
 	sed -i 's/rx/Received/g;s/tx/Sent/g;1i Metric,Time,Value' "$CSV_OUTPUT_DIR/WeekThis.htm"
 	sed -i 's/rx/Received/g;s/tx/Sent/g;1i Metric,Time,Value' "$CSV_OUTPUT_DIR/WeekPrev.htm"
 
-	cat "$CSV_OUTPUT_DIR/week_summary_this_rx.tmp" "$CSV_OUTPUT_DIR/week_summary_this_tx.tmp" "$CSV_OUTPUT_DIR/week_summary_prev_rx.tmp" "$CSV_OUTPUT_DIR/week_summary_prev_tx.tmp" "$CSV_OUTPUT_DIR/week_summary_prev2_rx.tmp" "$CSV_OUTPUT_DIR/week_summary_prev2_tx.tmp" > "$CSV_OUTPUT_DIR/WeekSummary.htm" 2> /dev/null
+	cat "$CSV_OUTPUT_DIR/week_summary_this_rx.tmp" "$CSV_OUTPUT_DIR/week_summary_this_tx.tmp" "$CSV_OUTPUT_DIR/week_summary_prev_rx.tmp" "$CSV_OUTPUT_DIR/week_summary_prev_tx.tmp" "$CSV_OUTPUT_DIR/week_summary_prev2_rx.tmp" "$CSV_OUTPUT_DIR/week_summary_prev2_tx.tmp" > "$CSV_OUTPUT_DIR/WeekSummary.htm" 2>/dev/null
 	sed -i 's/rx/Received/g;s/tx/Sent/g;1i Metric,Time,Value' "$CSV_OUTPUT_DIR/WeekSummary.htm"
 
 	rm -f "$CSV_OUTPUT_DIR/week"*
@@ -1602,9 +1753,10 @@ Generate_CSVs()
 		echo ".mode csv"
 		echo ".headers on"
 		echo ".output $CSV_OUTPUT_DIR/CompleteResults.htm"
+		echo "PRAGMA temp_store=1;"
 		echo "SELECT strftime('%s',[date],'utc') Time,[rx],[tx] FROM fiveminute WHERE strftime('%s',[date],'utc') >= strftime('%s',datetime($timenow,'unixepoch','-30 day')) ORDER BY strftime('%s', [date]) DESC;"
 	} > /tmp/dn-vnstat-complete.sql
-	"$SQLITE3_PATH" "$VNSTAT_DBASE" < /tmp/dn-vnstat-complete.sql
+	_ApplyDatabaseSQLCmds_ /tmp/dn-vnstat-complete.sql gnr10
 	rm -f /tmp/dn-vnstat-complete.sql
 
 	dos2unix "$CSV_OUTPUT_DIR/"*.htm
@@ -1620,7 +1772,8 @@ Generate_CSVs()
 		find "$tmpoutputdir/" -name '*.htm' -exec sh -c 'i="$1"; mv -- "$i" "${i%.htm}.csv"' _ {} \;
 	elif [ "$OUTPUTTIMEMODE" = "non-unix" ]
 	then
-		for i in "$tmpoutputdir/"*".htm"; do
+		for i in "$tmpoutputdir/"*".htm"
+		do
 			awk -F"," 'NR==1 {OFS=","; print} NR>1 {OFS=","; $1=strftime("%Y-%m-%d %H:%M:%S", $1); print }' "$i" > "$i.out"
 		done
 
@@ -1727,7 +1880,7 @@ Generate_Stats()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Apr-27] ##
+## Modified by Martinski W. [2025-Jun-16] ##
 ##----------------------------------------##
 Generate_Email()
 {
@@ -1743,14 +1896,17 @@ Generate_Email()
 	fi
 
 	PASSWORD=""
-	if /usr/sbin/openssl aes-256-cbc -d -in "$PWENCFILE" -pass pass:ditbabot,isoi >/dev/null 2>&1 ; then
-		# old OpenSSL 1.0.x
+	if /usr/sbin/openssl aes-256-cbc -d -in "$PWENCFILE" -pass pass:ditbabot,isoi >/dev/null 2>&1
+	then
+		# old OpenSSL 1.0.x #
 		PASSWORD="$(/usr/sbin/openssl aes-256-cbc -d -in "$PWENCFILE" -pass pass:ditbabot,isoi 2>/dev/null)"
-	elif /usr/sbin/openssl aes-256-cbc -d -md md5 -in "$PWENCFILE" -pass pass:ditbabot,isoi >/dev/null 2>&1 ; then
-		# new OpenSSL 1.1.x non-converted password
+	elif /usr/sbin/openssl aes-256-cbc -d -md md5 -in "$PWENCFILE" -pass pass:ditbabot,isoi >/dev/null 2>&1
+	then
+		# new OpenSSL 1.1.x non-converted password #
 		PASSWORD="$(/usr/sbin/openssl aes-256-cbc -d -md md5 -in "$PWENCFILE" -pass pass:ditbabot,isoi 2>/dev/null)"
-	elif /usr/sbin/openssl aes-256-cbc $emailPwEnc -d -in "$PWENCFILE" -pass pass:ditbabot,isoi >/dev/null 2>&1 ; then
-		# new OpenSSL 1.1.x converted password with -pbkdf2 flag
+	elif /usr/sbin/openssl aes-256-cbc $emailPwEnc -d -in "$PWENCFILE" -pass pass:ditbabot,isoi >/dev/null 2>&1
+	then
+		# new OpenSSL 1.1.x converted password with -pbkdf2 flag #
 		PASSWORD="$(/usr/sbin/openssl aes-256-cbc $emailPwEnc -d -in "$PWENCFILE" -pass pass:ditbabot,isoi 2>/dev/null)"
 	fi
 
@@ -1830,7 +1986,9 @@ Generate_Email()
 		fi
 	elif [ "$emailtype" = "usage" ]
 	then
-		[ -z "$5" ] && Print_Output true "Attempting to send bandwidth usage email" "$PASS"
+		if [ $# -lt 4 ] || [ -z "$4" ]
+		then Print_Output true "Attempting to send bandwidth usage email" "$PASS"
+		fi
 		usagepercentage="$2"
 		usagestring="$3"
 		# plain text email to send #
@@ -1851,16 +2009,21 @@ Generate_Email()
 	--ssl-reqd \
  	--crlf \
 	--user "$USERNAME:$PASSWORD" $SSL_FLAG
+
 	if [ $? -eq 0 ]
 	then
-		echo ""
-		[ -z "$5" ] && Print_Output true "Email sent successfully" "$PASS"
+		echo
+		if [ $# -lt 4 ] || [ -z "$4" ]
+		then Print_Output true "Email sent successfully" "$PASS"
+		fi
 		rm -f /tmp/mail.txt
 		PASSWORD=""
 		return 0
 	else
-		echo ""
-		[ -z "$5" ] && Print_Output true "Email failed to send" "$ERR"
+		echo
+		if [ $# -lt 4 ] || [ -z "$4" ]
+		then Print_Output true "Email failed to send" "$ERR"
+		fi
 		rm -f /tmp/mail.txt
 		PASSWORD=""
 		return 1
@@ -1902,7 +2065,7 @@ Encode_Text()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Apr-28] ##
+## Modified by Martinski W. [2025-Jun-16] ##
 ##----------------------------------------##
 DailyEmail()
 {
@@ -1957,12 +2120,15 @@ DailyEmail()
 			sed -i 's/^DAILYEMAIL.*$/DAILYEMAIL=none/' "$SCRIPT_CONF"
 		;;
 		check)
-			DAILYEMAIL="$(grep "^DAILYEMAIL=" "$SCRIPT_CONF" | cut -f2 -d'=')"
-			echo "${DAILYEMAIL:=none}"
+			DAILYEMAIL="$(_GetConfigParam_ DAILYEMAIL none)"
+			echo "$DAILYEMAIL"
 		;;
 	esac
 }
 
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-16] ##
+##----------------------------------------##
 UsageEmail()
 {
 	case "$1" in
@@ -1974,14 +2140,15 @@ UsageEmail()
 			sed -i 's/^USAGEEMAIL.*$/USAGEEMAIL=false/' "$SCRIPT_CONF"
 		;;
 		check)
-			USAGEEMAIL="$(grep "^USAGEEMAIL=" "$SCRIPT_CONF" | cut -f2 -d"=")"
-			if [ "$USAGEEMAIL" = "true" ]; then return 0; else return 1; fi
+			USAGEEMAIL="$(_GetConfigParam_ USAGEEMAIL 'false')"
+			if [ "$USAGEEMAIL" = "true" ]
+			then return 0; else return 1; fi
 		;;
 	esac
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Apr-27] ##
+## Modified by Martinski W. [2025-Jun-16] ##
 ##----------------------------------------##
 BandwidthAllowance()
 {
@@ -1996,8 +2163,8 @@ BandwidthAllowance()
 			Check_Bandwidth_Usage
 		;;
 		check)
-			DATAALLOWANCE="$(grep "^DATAALLOWANCE=" "$SCRIPT_CONF" | cut -f2 -d"=")"
-			echo "${DATAALLOWANCE:=1200.00}"
+			DATAALLOWANCE="$(_GetConfigParam_ DATAALLOWANCE '1200.00')"
+			echo "$DATAALLOWANCE"
 		;;
 	esac
 }
@@ -2020,6 +2187,9 @@ AllowanceStartDay()
 	esac
 }
 
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-16] ##
+##----------------------------------------##
 AllowanceUnit()
 {
 	case "$1" in
@@ -2027,8 +2197,8 @@ AllowanceUnit()
 		sed -i 's/^ALLOWANCEUNIT.*$/ALLOWANCEUNIT='"$2"'/' "$SCRIPT_CONF"
 		;;
 		check)
-			ALLOWANCEUNIT="$(grep "^ALLOWANCEUNIT=" "$SCRIPT_CONF" | cut -f2 -d"=")"
-			echo "${ALLOWANCEUNIT:=G}B"
+			ALLOWANCEUNIT="$(_GetConfigParam_ ALLOWANCEUNIT 'G')"
+			echo "${ALLOWANCEUNIT}B"
 		;;
 	esac
 }
@@ -2064,9 +2234,10 @@ Check_Bandwidth_Usage()
 	rawbandwidthused="$($VNSTAT_COMMAND -i "$interface" --json m | jq -r '.interfaces[].traffic.month[-1] | .rx + .tx')"
 	userLimit="$(BandwidthAllowance check)"
 
-	bandwidthused=$(echo "$rawbandwidthused" | awk '{printf("%.2f\n", $1/(1000*1000*1000));}')
-	if AllowanceUnit check | grep -q T; then
-		bandwidthused=$(echo "$rawbandwidthused" | awk '{printf("%.2f\n", $1/(1000*1000*1000*1000));}')
+	bandwidthused="$(echo "$rawbandwidthused" | awk '{printf("%.2f\n", $1/(1000*1000*1000));}')"
+	if AllowanceUnit check | grep -q T
+	then
+		bandwidthused="$(echo "$rawbandwidthused" | awk '{printf("%.2f\n", $1/(1000*1000*1000*1000));}')"
 	fi
 
 	bandwidthpercentage=""
@@ -2076,7 +2247,7 @@ Check_Bandwidth_Usage()
 		bandwidthpercentage="N/A"
 		usagestring="You have used ${bandwidthused}$(AllowanceUnit check) of data this cycle; the next cycle starts on day $(AllowanceStartDay check) of the month."
 	else
-		bandwidthpercentage=$(echo "$bandwidthused $userLimit" | awk '{printf("%.2f\n", $1*100/$2);}')
+		bandwidthpercentage="$(echo "$bandwidthused $userLimit" | awk '{printf("%.2f\n", $1*100/$2);}')"
 		usagestring="You have used ${bandwidthpercentage}% (${bandwidthused}$(AllowanceUnit check)) of your ${userLimit}$(AllowanceUnit check) cycle allowance; the next cycle starts on day $(AllowanceStartDay check) of the month."
 	fi
 
@@ -2168,27 +2339,28 @@ Process_Upgrade()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Apr-13] ##
+## Modified by Martinski W. [2025-Jun-16] ##
 ##----------------------------------------##
 ScriptHeader()
 {
 	clear
 	printf "\n"
-	printf "${BOLD}##################################################${CLEARFORMAT}\n"
-	printf "${BOLD}##                                              ##${CLEARFORMAT}\n"
-	printf "${BOLD}##             vnStat on Merlin                 ##${CLEARFORMAT}\n"
-	printf "${BOLD}##        for AsusWRT-Merlin routers            ##${CLEARFORMAT}\n"
-	printf "${BOLD}##                                              ##${CLEARFORMAT}\n"
-	printf "${BOLD}##         %9s on %-18s      ##${CLEARFORMAT}\n" "$SCRIPT_VERSION" "$ROUTER_MODEL"
-	printf "${BOLD}##                                              ## ${CLEARFORMAT}\n"
-	printf "${BOLD}## https://github.com/de-vnull/vnstat-on-merlin ##${CLEARFORMAT}\n"
-	printf "${BOLD}##                                              ##${CLEARFORMAT}\n"
-	printf "${BOLD}##################################################${CLEARFORMAT}\n"
+	printf "${BOLD}##############################################################${CLEARFORMAT}\n"
+	printf "${BOLD}##                                                          ##${CLEARFORMAT}\n"
+	printf "${BOLD}##                     vnStat on Merlin                     ##${CLEARFORMAT}\n"
+	printf "${BOLD}##                for AsusWRT-Merlin routers                ##${CLEARFORMAT}\n"
+	printf "${BOLD}##                                                          ##${CLEARFORMAT}\n"
+	printf "${BOLD}##                %9s on %-18s           ##${CLEARFORMAT}\n" "$SCRIPT_VERSION" "$ROUTER_MODEL"
+	printf "${BOLD}##                                                          ## ${CLEARFORMAT}\n"
+	printf "${BOLD}##       https://github.com/AMTM-OSR/vnstat-on-merlin       ##${CLEARFORMAT}\n"
+	printf "${BOLD}## Forked from https://github.com/de-vnull/vnstat-on-merlin ##${CLEARFORMAT}\n"
+	printf "${BOLD}##                                                          ##${CLEARFORMAT}\n"
+	printf "${BOLD}##############################################################${CLEARFORMAT}\n"
 	printf "\n"
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-May-01] ##
+## Modified by Martinski W. [2025-Jun-16] ##
 ##----------------------------------------##
 MainMenu()
 {
@@ -2203,16 +2375,19 @@ MainMenu()
 	elif [ "$MENU_DAILYEMAIL" = "none" ]; then
 		MENU_DAILYEMAIL="${ERR}DISABLED"
 	fi
-	MENU_USAGE_ENABLED=""
+
+	local MENU_USAGE_ENABLED
 	if UsageEmail check
 	then MENU_USAGE_ENABLED="${PASS}ENABLED"
 	else MENU_USAGE_ENABLED="${ERR}DISABLED"
 	fi
-	MENU_BANDWIDTHALLOWANCE=""
-	if [ "$(echo "$(BandwidthAllowance check) 0" | awk '{print ($1 == $2)}')" -eq 1 ]; then
-		MENU_BANDWIDTHALLOWANCE="UNLIMITED"
-	else
-		MENU_BANDWIDTHALLOWANCE="$(BandwidthAllowance check)$(AllowanceUnit check)"
+
+	local bandwidthDataUnit="$(AllowanceUnit check)"
+	local bandwidthAllowance="$(BandwidthAllowance check)"
+	local MENU_BANDWIDTHALLOWANCE
+	if [ "$(echo "$bandwidthAllowance 0" | awk '{print ($1 == $2)}')" -eq 1 ]
+	then MENU_BANDWIDTHALLOWANCE="UNLIMITED"
+	else MENU_BANDWIDTHALLOWANCE="${bandwidthAllowance} ${bandwidthDataUnit}ytes"
 	fi
 
 	storageLocStr="$(ScriptStorageLocation check | tr 'a-z' 'A-Z')"
@@ -2407,7 +2582,7 @@ MainMenu()
 			*)
 				[ -n "$menuOption" ] && \
 				printf "\n${REDct}INVALID input [$menuOption]${CLEARFORMAT}"
-				printf "\nPlease choose a valid option\n\n"
+				printf "\nPlease choose a valid option.\n\n"
 				PressEnter
 				break
 			;;
@@ -2560,18 +2735,26 @@ Menu_Startup()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Apr-27] ##
+## Modified by Martinski W. [2025-Jun-16] ##
 ##----------------------------------------##
 Menu_BandwidthAllowance()
 {
-	exitmenu="false"
-	bandwidthallowance=""
-	ScriptHeader
+	local exitmenu="false"
+	local bwDataUnit="$(AllowanceUnit check)"
+	local bwDataAllowance="$(BandwidthAllowance check)"
+	local bwDataAllowanceStr
+
+	if [ "$(echo "$bwDataAllowance 0" | awk '{print ($1 == $2)}')" -eq 1 ]
+	then bwDataAllowanceStr="UNLIMITED"
+	else bwDataAllowanceStr="${bwDataAllowance} ${bwDataUnit}ytes"
+	fi
 
 	while true
 	do
-		printf "\n${BOLD}Please enter your monthly bandwidth allowance\n"
-		printf "(%s, 0 = unlimited, max. 2 decimals):${CLEARFORMAT}  " "$(AllowanceUnit check)"
+		ScriptHeader
+		printf "${BOLD}Current monthly bandwidth allowance: ${GRNct}${bwDataAllowanceStr}${CLRct}\n\n"
+		printf "${BOLD}Enter your monthly bandwidth allowance in ${GRNct}%s${CLRct} units\n" "${bwDataUnit}yte"
+		printf "(0 = Unlimited, max. 2 decimal places):${CLEARFORMAT}  "
 		read -r allowance
 
 		if [ "$allowance" = "e" ]
@@ -2581,23 +2764,24 @@ Menu_BandwidthAllowance()
 			break
 		elif ! Validate_Bandwidth "$allowance"
 		then
-			printf "\n${ERR}Please enter a valid number (%s, 0 = unlimited, max. 2 decimals)${CLEARFORMAT}\n" "$(AllowanceUnit check)"
+			printf "\n${ERR}Please enter a valid number (0 = unlimited, max. 2 decimal places)${CLEARFORMAT}\n"
+			PressEnter
 		else
-			bandwidthallowance="$allowance"
+			bwDataAllowance="$allowance"
 			printf "\n"
 			break
 		fi
 	done
 
 	if [ "$exitmenu" != "exit" ]; then
-		BandwidthAllowance update "$bandwidthallowance"
+		BandwidthAllowance update "$bwDataAllowance"
 	fi
 
 	Clear_Lock
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Apr-27] ##
+## Modified by Martinski W. [2025-Jun-16] ##
 ##----------------------------------------##
 Menu_AllowanceUnit()
 {
@@ -2605,10 +2789,10 @@ Menu_AllowanceUnit()
 	allowanceunit=""
 	prevallowanceunit="$(AllowanceUnit check)"
 	unitsuffix="$(AllowanceUnit check | sed 's/T//;s/G//;')"
-	ScriptHeader
 
 	while true
 	do
+		ScriptHeader
 		printf "\n${BOLD}Please select the unit to use for bandwidth allowance:${CLEARFORMAT}\n"
 		printf " 1.  G%s\n" "$unitsuffix"
 		printf " 2.  T%s\n\n" "$unitsuffix"
@@ -2631,7 +2815,8 @@ Menu_AllowanceUnit()
 				break
 			;;
 			*)
-				printf "\nPlease choose a valid option\n\n"
+				printf "\n${ERR}Please choose a valid option [1-2]${CLEARFORMAT}\n"
+				PressEnter
 			;;
 		esac
 	done
@@ -2657,13 +2842,15 @@ Menu_AllowanceUnit()
 
 			if [ "$scaletype" != "none" ]
 			then
-				bandwidthallowance="$(BandwidthAllowance check)"
-				if [ "$scaletype" = "multiply" ]; then
-					bandwidthallowance=$(echo "$(BandwidthAllowance check) $scalefactor" | awk '{printf("%.2f\n", $1*$2);}')
-				elif [ "$scaletype" = "divide" ]; then
-					bandwidthallowance=$(echo "$(BandwidthAllowance check) $scalefactor" | awk '{printf("%.2f\n", $1/$2);}')
+				bandwidthAllowance="$(BandwidthAllowance check)"
+				if [ "$scaletype" = "multiply" ]
+				then
+					bandwidthAllowance="$(echo "$(BandwidthAllowance check) $scalefactor" | awk '{printf("%.2f\n", $1*$2);}')"
+				elif [ "$scaletype" = "divide" ]
+				then
+					bandwidthAllowance="$(echo "$(BandwidthAllowance check) $scalefactor" | awk '{printf("%.2f\n", $1/$2);}')"
 				fi
-				BandwidthAllowance update "$bandwidthallowance" noreset
+				BandwidthAllowance update "$bandwidthAllowance" noreset
 			fi
 		fi
 	fi
@@ -2671,15 +2858,18 @@ Menu_AllowanceUnit()
 	Clear_Lock
 }
 
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-16] ##
+##----------------------------------------##
 Menu_AllowanceStartDay()
 {
 	exitmenu="false"
 	allowancestartday=""
-	ScriptHeader
 
 	while true
 	do
-		printf "\n${BOLD}Please enter day of month that your bandwidth allowance\nresets (1-28):${CLEARFORMAT}  "
+		ScriptHeader
+		printf "\n${BOLD}Please enter day of month that your bandwidth allowance\nresets [1-28]:${CLEARFORMAT}  "
 		read -r startday
 
 		if [ "$startday" = "e" ]
@@ -2689,11 +2879,13 @@ Menu_AllowanceStartDay()
 			break
 		elif ! Validate_Number "$startday"
 		then
-			printf "\n${ERR}Please enter a valid number (1-28)${CLEARFORMAT}\n"
+			printf "\n${ERR}Please enter a valid number [1-28]${CLEARFORMAT}\n"
+			PressEnter
 		else
 			if [ "$startday" -lt 1 ] || [ "$startday" -gt 28 ]
 			then
 				printf "\n${ERR}Please enter a number between 1 and 28${CLEARFORMAT}\n"
+				PressEnter
 			else
 				allowancestartday="$startday"
 				printf "\n"
@@ -2961,40 +3153,51 @@ Entware_Ready()
 	fi
 }
 
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-16] ##
+##----------------------------------------##
 Show_About()
 {
 	cat <<EOF
-About
-  $SCRIPT_NAME implements an NTP time server for AsusWRT Merlin
-  with charts for daily, weekly and monthly summaries of performance.
-  A choice between ntpd and chrony is available.
+About $SCRIPT_VERS_INFO
+  $SCRIPT_NAME is an implementation of vnStat for AsusWRT-Merlin
+  to enable measurement of internet data usage and store results
+  in a local database, with hourly, daily, and monthly summaries.
+  Daily notification with email summaries can also be configured.
+
 License
   $SCRIPT_NAME is free to use under the GNU General Public License
   version 3 (GPL-3.0) https://opensource.org/licenses/GPL-3.0
+
 Help & Support
   https://www.snbforums.com/forums/asuswrt-merlin-addons.60/?prefix_id=22
+
 Source code
-  https://github.com/jackyaz/$SCRIPT_NAME
+  https://github.com/AMTM-OSR/vnstat-on-merlin
 EOF
 	printf "\n"
 }
 
 ### function based on @dave14305's FlexQoS show_help function ###
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-16] ##
+##----------------------------------------##
 Show_Help()
 {
 	cat <<EOF
+HELP $SCRIPT_VERS_INFO
 Available commands:
-  $SCRIPT_NAME about              explains functionality
-  $SCRIPT_NAME update             checks for updates
-  $SCRIPT_NAME forceupdate        updates to latest version (force update)
-  $SCRIPT_NAME startup force      runs startup actions such as mount WebUI tab
-  $SCRIPT_NAME install            installs script
-  $SCRIPT_NAME uninstall          uninstalls script
-  $SCRIPT_NAME generate           get latest data from vnstat. also runs outputcsv
-  $SCRIPT_NAME summary            get daily summary data from vnstat. runs automatically at end of day. also runs outputcsv
-  $SCRIPT_NAME outputcsv          create CSVs from database, used by WebUI and export
-  $SCRIPT_NAME develop            switch to development branch
-  $SCRIPT_NAME stable             switch to stable branch
+  $SCRIPT_NAME about            explains functionality
+  $SCRIPT_NAME update           checks for updates
+  $SCRIPT_NAME forceupdate      updates to latest version (force update)
+  $SCRIPT_NAME startup force    runs startup actions such as mount WebUI tab
+  $SCRIPT_NAME install          installs script
+  $SCRIPT_NAME uninstall        uninstalls script
+  $SCRIPT_NAME generate         get latest data from vnstat. also runs outputcsv
+  $SCRIPT_NAME summary          get daily summary data from vnstat. runs automatically at end of day. also runs outputcsv
+  $SCRIPT_NAME outputcsv        create CSVs from database, used by WebUI and export
+  $SCRIPT_NAME develop          switch to development branch
+  $SCRIPT_NAME stable           switch to stable branch
 EOF
 	printf "\n"
 }
@@ -3006,6 +3209,12 @@ TMPDIR="$SHARE_TEMP_DIR"
 SQLITE_TMPDIR="$TMPDIR"
 export SQLITE_TMPDIR TMPDIR
 
+if [ -d "$TMPDIR" ]
+then sqlDBLogFilePath="${TMPDIR}/$sqlDBLogFileName"
+else sqlDBLogFilePath="/tmp/var/tmp/$sqlDBLogFileName"
+fi
+_SQLCheckDBLogFileSize_
+
 if [ -f "/opt/share/$SCRIPT_NAME.d/config" ]
 then SCRIPT_STORAGE_DIR="/opt/share/$SCRIPT_NAME.d"
 else SCRIPT_STORAGE_DIR="/jffs/addons/$SCRIPT_NAME.d"
@@ -3016,9 +3225,15 @@ SCRIPT_CONF="$SCRIPT_STORAGE_DIR/config"
 CSV_OUTPUT_DIR="$SCRIPT_STORAGE_DIR/csv"
 IMAGE_OUTPUT_DIR="$SCRIPT_STORAGE_DIR/images"
 VNSTAT_CONFIG="$SCRIPT_STORAGE_DIR/vnstat.conf"
+VNSTAT_DBASE="$(_GetVNStatDatabaseFilePath_)"
 VNSTAT_COMMAND="vnstat --config $VNSTAT_CONFIG"
 VNSTATI_COMMAND="vnstati --config $VNSTAT_CONFIG"
 VNSTAT_OUTPUT_FILE="$SCRIPT_STORAGE_DIR/vnstat.txt"
+
+if [ "$SCRIPT_BRANCH" != "develop" ]
+then SCRIPT_VERS_INFO=""
+else SCRIPT_VERS_INFO="$scriptVERINFO"
+fi
 
 ##----------------------------------------##
 ## Modified by Martinski W. [2025-Apr-27] ##
@@ -3154,14 +3369,14 @@ case "$1" in
 		exit 0
 	;;
 	develop)
-		SCRIPT_BRANCH="jackyaz-dev"
-		SCRIPT_REPO="https://raw.githubusercontent.com/de-vnull/vnstat-on-merlin/$SCRIPT_BRANCH"
+		SCRIPT_BRANCH="develop"
+		SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/vnstat-on-merlin/$SCRIPT_BRANCH"
 		Update_Version force
 		exit 0
 	;;
 	stable)
 		SCRIPT_BRANCH="main"
-		SCRIPT_REPO="https://raw.githubusercontent.com/de-vnull/vnstat-on-merlin/$SCRIPT_BRANCH"
+		SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/vnstat-on-merlin/$SCRIPT_BRANCH"
 		Update_Version force
 		exit 0
 	;;

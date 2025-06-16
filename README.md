@@ -1,6 +1,6 @@
 # vnstat-on-merlin - _Release - R1 and R2_
 
-## v2.0.7  [Updated on 2025-May-01]
+## v2.0.8  [Updated on 2025-Jun-16]
 
 # README #
 
@@ -27,7 +27,7 @@
 
 ### Notes about data use, units and monitoring ###
 
-* vnStat-on-Merlin R1 (in the 'Legacy' branch) uses the Entware version of vnStat, currently version 1.18. This is an older version of the application. This version has certain limitations, described here: https://github.com/de-vnull/vnstat-on-merlin/blob/main/more-info.md .
+* vnStat-on-Merlin R1 (in the 'Legacy' branch) uses the Entware version of vnStat, currently version 1.18. This is an older version of the application. This version has certain limitations, described here: https://github.com/AMTM-OSR/vnstat-on-merlin/blob/main/more-info.md .
 * vnStat-on-Merlin R2 uses the Entware version of vnStat2, currently version 2.7. This is a recent release of the software. It is supported by ARM and AARCH architectures only.
 * vnStat-on-Merlin data-use and data-limit reporting __should be considered a guide__, an approximation of actual use. __vnStat-reported totals may or may not match that reported by your provider__, your cycle may start and stop on a different day of the month, a partial month (especially the first month) or the data use reported could be affected by variables such as hardware acceleration, settings that bypass the TCP/IP stack or as mundane as scheduled reboots. __You must conduct proper due diligence to determine if the usage reported by vnStat aligns with your provider.__
 
@@ -87,22 +87,22 @@
 * Install of Vnstat on Merlin is available in the `amtm` menu (from amtm version 3.1.9 and later). That is currently the best way to install and manage.
 * Alternative install: from the CLI, issue the following command (triple click to select all):
 ```
-/usr/sbin/curl --retry 3 "https://raw.githubusercontent.com/de-vnull/vnstat-on-merlin/main/dn-vnstat.sh" -o "/jffs/scripts/dn-vnstat" && chmod 0755 /jffs/scripts/dn-vnstat && /jffs/scripts/dn-vnstat install
+/usr/sbin/curl --retry 3 "https://raw.githubusercontent.com/AMTM-OSR/vnstat-on-merlin/main/dn-vnstat.sh" -o "/jffs/scripts/dn-vnstat" && chmod 0755 /jffs/scripts/dn-vnstat && /jffs/scripts/dn-vnstat install
 ```
 	
 * The AddOns tab showing the UI
 
-![UI-full](https://github.com/de-vnull/vnstat-on-merlin/blob/main/images/Screenshot_2021-02-28_dn-vnstat-gr-xp.png)		
+![UI-full](https://github.com/AMTM-OSR/vnstat-on-merlin/blob/main/images/Screenshot_2021-02-28_dn-vnstat-gr-xp.png)		
 
 * The dn-vnstat menu
 
-![Menu](https://github.com/de-vnull/vnstat-on-merlin/blob/main/images/CLI-vR1.PNG)
+![Menu](https://github.com/AMTM-OSR/vnstat-on-merlin/blob/main/images/CLI-vR1.PNG)
 
 * A sample of the email message output - sent as html or plain text.
 
-![Email_html](https://github.com/de-vnull/vnstat-on-merlin/blob/main/images/HTML-daily.PNG)
+![Email_html](https://github.com/AMTM-OSR/vnstat-on-merlin/blob/main/images/HTML-daily.PNG)
 
-![Email_text](https://github.com/de-vnull/vnstat-on-merlin/blob/main/images/Txt-daily.PNG)
+![Email_text](https://github.com/AMTM-OSR/vnstat-on-merlin/blob/main/images/Txt-daily.PNG)
 
 
 ### Upgrade from a manual install or alpha or beta 1 - R1 (Legacy) branch only ###
@@ -118,7 +118,7 @@
 * Export and import of data usage tracking is possible for __Version R1 only__, even across architectures (tested ARM <-> MIPS and ARM <-> AARCH). See instructions below. __Export and import functions have been removed in vnStat 2.x and are therefore not available in R2.__
 * There is also the ability to export the data for review within other programs (`vnstat --dumpdb`) - __R1 only__. 
 * It has been reported that with _hardware acceleration_ implemented, the data counts provided by vnstat are no more accurate than the built-in tools (which is to say, not accurate).
-* For the __day of month reset__ attribute in the menu (0.9.5 and later) and vnstat.conf: the count does not reset until the following month; described here: https://github.com/de-vnull/vnstat-on-merlin/blob/main/more-info.md#MonthRotate .
+* For the __day of month reset__ attribute in the menu (0.9.5 and later) and vnstat.conf: the count does not reset until the following month; described here: https://github.com/AMTM-OSR/vnstat-on-merlin/blob/main/more-info.md#MonthRotate .
 
 
 
@@ -140,9 +140,9 @@
 
 * If you want to run vnstat without the UI, __are running Diversion__, and still wish to have a daily email, follow these steps:
 
-	- Copy __div-email.sh__ script from this location (https://github.com/de-vnull/vnstat-on-merlin/tree/VoM_CLI/scripts) to /jffs/scripts. This script sends vnstat reports by email to one or more users. Uses the email configuration from Diversion.
+	- Copy __div-email.sh__ script from this location (https://github.com/AMTM-OSR/vnstat-on-merlin/tree/VoM_CLI/scripts) to /jffs/scripts. This script sends vnstat reports by email to one or more users. Uses the email configuration from Diversion.
 	- __ **Note: for `amtm` v 3.2.1 or later, use `div-email-amtm-3-2-1.sh`**__ - rename to `div-email.sh` once copied - this contains the new path to the encrypted password file and path to openssl (required post-3.2.1).
-	- Copy __vnstat-stats.sh__ script from this location (https://github.com/de-vnull/vnstat-on-merlin/tree/VoM_CLI/scripts) to /jffs/scripts. This script concatenates the daily, weekly and monthly usage into a text file which is part of the daily email.
+	- Copy __vnstat-stats.sh__ script from this location (https://github.com/AMTM-OSR/vnstat-on-merlin/tree/VoM_CLI/scripts) to /jffs/scripts. This script concatenates the daily, weekly and monthly usage into a text file which is part of the daily email.
 	- Note: you man need to add the _Equifax_Secure_Certificate_Authority.pem_ file to /jffs/scripts if you get an error message (gmail particularly).
 
 If you're running the `div-email.sh` script with the non-UI version of vnstat, add this line to the `services-start` and the `service-event` scripts in the `/jffs/scripts` directory:
@@ -152,8 +152,8 @@ cru a vnstat_daily "59 23 * * * /opt/bin/vnstat -u && sh /jffs/scripts/vnstat-st
 ```
 
 * If you want to run vnstat without the UI, __are not running Diversion__, and still wish to email daily usage:
-	- Copy __vnstat-stats.sh__ script from this location (https://github.com/de-vnull/vnstat-on-merlin/tree/VoM_CLI/scripts) to /jffs/scripts. This script concatenates the daily, weekly and monthly usage into a text file which is part of the daily email.
-	- Copy __send-vnstat.sh__ script from this location (https://github.com/de-vnull/vnstat-on-merlin/tree/VoM_CLI/scripts) to /jffs/scripts. 
+	- Copy __vnstat-stats.sh__ script from this location (https://github.com/AMTM-OSR/vnstat-on-merlin/tree/VoM_CLI/scripts) to /jffs/scripts. This script concatenates the daily, weekly and monthly usage into a text file which is part of the daily email.
+	- Copy __send-vnstat.sh__ script from this location (https://github.com/AMTM-OSR/vnstat-on-merlin/tree/VoM_CLI/scripts) to /jffs/scripts. 
 		- The `send-vnstat` script requires you to update the email address (from, password, and to), your router name and other information.
 		- This script stores email credentials in plain text. Use only when you have control over access to the router.
 			- __This script should be used only when Diversion's email communication is not enabled or available.__
@@ -168,7 +168,7 @@ cru a vnstat_daily "59 23 * * * /opt/bin/vnstat -u && sh /jffs/scripts/vnstat-st
 * The CLI vnstat report and options view
 
 
-![CLI](https://github.com/de-vnull/vnstat-on-merlin/blob/main/images/vnstat-cli-red.PNG)
+![CLI](https://github.com/AMTM-OSR/vnstat-on-merlin/blob/main/images/vnstat-cli-red.PNG)
 
 ### Returning the default theme and rate columns - R1 only ###
 
