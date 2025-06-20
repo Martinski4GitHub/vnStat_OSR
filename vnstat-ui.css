@@ -129,3 +129,12 @@ div.vnstat {
   background-repeat: no-repeat !important;
   background-position: center !important;
 }
+
+#datausagewarning a {
+  text-decoration: none;
+  display: inline-block;
+}
+
+#datausagewarning a img {
+  display: block;
+}
