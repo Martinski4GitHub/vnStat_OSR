@@ -11,7 +11,7 @@
 ## Forked from https://github.com/de-vnull/vnstat-on-merlin ##
 ##                                                          ##
 ##############################################################
-# Last Modified: 2025-Jun-16
+# Last Modified: 2025-Jun-22
 #-------------------------------------------------------------
 
 ########         Shellcheck directives     ######
@@ -27,6 +27,8 @@
 # shellcheck disable=SC2155
 # shellcheck disable=SC2174
 # shellcheck disable=SC2181
+# shellcheck disable=SC3018
+# shellcheck disable=SC3037
 # shellcheck disable=SC3043
 # shellcheck disable=SC3045
 #################################################
@@ -34,7 +36,7 @@
 ### Start of script variables ###
 readonly SCRIPT_NAME="dn-vnstat"
 readonly SCRIPT_VERSION="v2.0.8"
-readonly SCRIPT_VERSTAG="25061610"
+readonly SCRIPT_VERSTAG="25062223"
 SCRIPT_BRANCH="main"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/vnstat-on-merlin/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
@@ -708,34 +710,43 @@ Conf_Exists()
 }
 
 ### Add script hook to service-event and pass service_event argument and all other arguments passed to the service call ###
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-17] ##
+##----------------------------------------##
 Auto_ServiceEvent()
 {
+	local theScriptFilePath="/jffs/scripts/$SCRIPT_NAME"
 	case $1 in
 		create)
 			if [ -f /jffs/scripts/service-event ]
 			then
-				STARTUPLINECOUNT=$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/service-event)
-				STARTUPLINECOUNTEX=$(grep -cx "/jffs/scripts/$SCRIPT_NAME service_event"' "$@" & # '"$SCRIPT_NAME" /jffs/scripts/service-event)
+				STARTUPLINECOUNT="$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/service-event)"
+				STARTUPLINECOUNTEX="$(grep -cx 'if echo "$2" | /bin/grep -q "'"$SCRIPT_NAME"'"; then { '"$theScriptFilePath"' service_event "$@" & }; fi # '"$SCRIPT_NAME" /jffs/scripts/service-event)"
 
-				if [ "$STARTUPLINECOUNT" -gt 1 ] || { [ "$STARTUPLINECOUNTEX" -eq 0 ] && [ "$STARTUPLINECOUNT" -gt 0 ]; }; then
+				if [ "$STARTUPLINECOUNT" -gt 1 ] || { [ "$STARTUPLINECOUNTEX" -eq 0 ] && [ "$STARTUPLINECOUNT" -gt 0 ]; }
+				then
 					sed -i -e '/# '"$SCRIPT_NAME"'/d' /jffs/scripts/service-event
 				fi
 
-				if [ "$STARTUPLINECOUNTEX" -eq 0 ]; then
-					echo "/jffs/scripts/$SCRIPT_NAME service_event"' "$@" & # '"$SCRIPT_NAME" >> /jffs/scripts/service-event
+				if [ "$STARTUPLINECOUNTEX" -eq 0 ]
+				then
+					{
+					  echo 'if echo "$2" | /bin/grep -q "'"$SCRIPT_NAME"'"; then { '"$theScriptFilePath"' service_event "$@" & }; fi # '"$SCRIPT_NAME"
+					} >> /jffs/scripts/service-event
 				fi
 			else
-				echo "#!/bin/sh" > /jffs/scripts/service-event
-				echo "" >> /jffs/scripts/service-event
-				echo "/jffs/scripts/$SCRIPT_NAME service_event"' "$@" & # '"$SCRIPT_NAME" >> /jffs/scripts/service-event
+                {
+				  echo "#!/bin/sh" ; echo
+				  echo 'if echo "$2" | /bin/grep -q "'"$SCRIPT_NAME"'"; then { '"$theScriptFilePath"' service_event "$@" & }; fi # '"$SCRIPT_NAME"
+				  echo
+                } > /jffs/scripts/service-event
 				chmod 0755 /jffs/scripts/service-event
 			fi
 		;;
 		delete)
 			if [ -f /jffs/scripts/service-event ]
 			then
-				STARTUPLINECOUNT=$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/service-event)
-				
+				STARTUPLINECOUNT="$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/service-event)"
 				if [ "$STARTUPLINECOUNT" -gt 0 ]; then
 					sed -i -e '/# '"$SCRIPT_NAME"'/d' /jffs/scripts/service-event
 				fi
@@ -745,35 +756,43 @@ Auto_ServiceEvent()
 }
 
 ### Add script hook to post-mount and pass startup argument and all other arguments passed with the partition mount ###
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-17] ##
+##----------------------------------------##
 Auto_Startup()
 {
+	local theScriptFilePath="/jffs/scripts/$SCRIPT_NAME"
 	case $1 in
 		create)
 			if [ -f /jffs/scripts/post-mount ]
 			then
-				STARTUPLINECOUNT=$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/post-mount)
-				STARTUPLINECOUNTEX=$(grep -cx "/jffs/scripts/$SCRIPT_NAME startup"' "$@" & # '"$SCRIPT_NAME" /jffs/scripts/post-mount)
+				STARTUPLINECOUNT="$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/post-mount)"
+				STARTUPLINECOUNTEX="$(grep -cx '\[ -x "${1}/entware/bin/opkg" \] && \[ -x '"$theScriptFilePath"' \] && '"$theScriptFilePath"' startup "$@" & # '"$SCRIPT_NAME" /jffs/scripts/post-mount)"
 
 				if [ "$STARTUPLINECOUNT" -gt 1 ] || { [ "$STARTUPLINECOUNTEX" -eq 0 ] && [ "$STARTUPLINECOUNT" -gt 0 ]; }
 				then
 					sed -i -e '/# '"$SCRIPT_NAME"'/d' /jffs/scripts/post-mount
 				fi
 
-				if [ "$STARTUPLINECOUNTEX" -eq 0 ]; then
-					echo "/jffs/scripts/$SCRIPT_NAME startup"' "$@" & # '"$SCRIPT_NAME" >> /jffs/scripts/post-mount
+				if [ "$STARTUPLINECOUNTEX" -eq 0 ]
+				then
+					{
+					  echo '[ -x "${1}/entware/bin/opkg" ] && [ -x '"$theScriptFilePath"' ] && '"$theScriptFilePath"' startup "$@" & # '"$SCRIPT_NAME"
+					} >> /jffs/scripts/post-mount
 				fi
 			else
-				echo "#!/bin/sh" > /jffs/scripts/post-mount
-				echo "" >> /jffs/scripts/post-mount
-				echo "/jffs/scripts/$SCRIPT_NAME startup"' "$@" & # '"$SCRIPT_NAME" >> /jffs/scripts/post-mount
+				{
+				  echo "#!/bin/sh" ; echo
+				  echo '[ -x "${1}/entware/bin/opkg" ] && [ -x '"$theScriptFilePath"' ] && '"$theScriptFilePath"' startup "$@" & # '"$SCRIPT_NAME"
+				  echo
+				} > /jffs/scripts/post-mount
 				chmod 0755 /jffs/scripts/post-mount
 			fi
 		;;
 		delete)
 			if [ -f /jffs/scripts/post-mount ]
 			then
-				STARTUPLINECOUNT=$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/post-mount)
-				
+				STARTUPLINECOUNT="$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/post-mount)"
 				if [ "$STARTUPLINECOUNT" -gt 0 ]; then
 					sed -i -e '/# '"$SCRIPT_NAME"'/d' /jffs/scripts/post-mount
 				fi
@@ -786,43 +805,43 @@ Auto_Cron()
 {
 	case $1 in
 		create)
-			STARTUPLINECOUNT=$(cru l | grep -c "${SCRIPT_NAME}_images")
+			STARTUPLINECOUNT="$(cru l | grep -c "${SCRIPT_NAME}_images")"
 			if [ "$STARTUPLINECOUNT" -gt 0 ]; then
 				cru d "${SCRIPT_NAME}_images"
 			fi
 
-			STARTUPLINECOUNT=$(cru l | grep -c "${SCRIPT_NAME}_stats")
+			STARTUPLINECOUNT="$(cru l | grep -c "${SCRIPT_NAME}_stats")"
 			if [ "$STARTUPLINECOUNT" -gt 0 ]; then
 				cru d "${SCRIPT_NAME}_stats"
 			fi
 
-			STARTUPLINECOUNT=$(cru l | grep -c "${SCRIPT_NAME}_generate")
+			STARTUPLINECOUNT="$(cru l | grep -c "${SCRIPT_NAME}_generate")"
 			if [ "$STARTUPLINECOUNT" -eq 0 ]; then
 				cru a "${SCRIPT_NAME}_generate" "*/5 * * * * /jffs/scripts/$SCRIPT_NAME generate"
 			fi
 
-			STARTUPLINECOUNT=$(cru l | grep -c "${SCRIPT_NAME}_summary")
+			STARTUPLINECOUNT="$(cru l | grep -c "${SCRIPT_NAME}_summary")"
 			if [ "$STARTUPLINECOUNT" -eq 0 ]; then
 				cru a "${SCRIPT_NAME}_summary" "59 23 * * * /jffs/scripts/$SCRIPT_NAME summary"
 			fi
 		;;
 		delete)
-			STARTUPLINECOUNT=$(cru l | grep -c "${SCRIPT_NAME}_images")
+			STARTUPLINECOUNT="$(cru l | grep -c "${SCRIPT_NAME}_images")"
 			if [ "$STARTUPLINECOUNT" -gt 0 ]; then
 				cru d "${SCRIPT_NAME}_images"
 			fi
 
-			STARTUPLINECOUNT=$(cru l | grep -c "${SCRIPT_NAME}_stats")
+			STARTUPLINECOUNT="$(cru l | grep -c "${SCRIPT_NAME}_stats")"
 			if [ "$STARTUPLINECOUNT" -gt 0 ]; then
 				cru d "${SCRIPT_NAME}_stats"
 			fi
 
-			STARTUPLINECOUNT=$(cru l | grep -c "${SCRIPT_NAME}_generate")
+			STARTUPLINECOUNT="$(cru l | grep -c "${SCRIPT_NAME}_generate")"
 			if [ "$STARTUPLINECOUNT" -gt 0 ]; then
 				cru d "${SCRIPT_NAME}_generate"
 			fi
 
-			STARTUPLINECOUNT=$(cru l | grep -c "${SCRIPT_NAME}_summary")
+			STARTUPLINECOUNT="$(cru l | grep -c "${SCRIPT_NAME}_summary")"
 			if [ "$STARTUPLINECOUNT" -gt 0 ]; then
 				cru d "${SCRIPT_NAME}_summary"
 			fi
@@ -858,10 +877,13 @@ _Check_WebGUI_Page_Exists_()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Apr-27] ##
+## Modified by Martinski W. [2025-Jun-20] ##
 ##----------------------------------------##
 Get_WebUI_Page()
 {
+	if [ $# -eq 0 ] || [ -z "$1" ] || [ ! -s "$1" ]
+	then MyWebPage="NONE" ; return 1 ; fi
+
 	local webPageFile  webPagePath
 
 	MyWebPage="$(_Check_WebGUI_Page_Exists_)"
@@ -957,6 +979,7 @@ ${ENDIN_MenuAddOnsTag}" "$TEMP_MENU_TREE"
 Mount_WebUI()
 {
 	Print_Output true "Mounting WebUI tab for $SCRIPT_NAME" "$PASS"
+
 	LOCKFILE=/tmp/addonwebui.lock
 	FD=386
 	eval exec "$FD>$LOCKFILE"
@@ -964,7 +987,7 @@ Mount_WebUI()
 	Get_WebUI_Page "$SCRIPT_DIR/vnstat-ui.asp"
 	if [ "$MyWebPage" = "NONE" ]
 	then
-		Print_Output true "**ERROR** Unable to mount $SCRIPT_NAME WebUI page, exiting" "$CRIT"
+		Print_Output true "**ERROR** Unable to mount $SCRIPT_NAME WebUI page." "$CRIT"
 		flock -u "$FD"
 		return 1
 	fi
@@ -998,6 +1021,7 @@ Mount_WebUI()
 		mount -o bind "$TEMP_MENU_TREE" /www/require/modules/menuTree.js
 	fi
 	flock -u "$FD"
+
 	Print_Output true "Mounted $SCRIPT_NAME WebUI page as $MyWebPage" "$PASS"
 }
 
@@ -1042,7 +1066,7 @@ PressEnter()
 
 Check_Requirements()
 {
-	CHECKSFAILED="false"
+	CHECKSFAILED=false
 
 	if [ "$(nvram get jffs2_scripts)" -ne 1 ]
 	then
@@ -1051,15 +1075,17 @@ Check_Requirements()
 		Print_Output true "Custom JFFS Scripts enabled" "$WARN"
 	fi
 
-	if [ ! -f /opt/bin/opkg ]; then
-		Print_Output false "Entware not detected!" "$ERR"
-		CHECKSFAILED="true"
+	if [ ! -f /opt/bin/opkg ]
+	then
+		CHECKSFAILED=true
+		Print_Output false "Entware NOT detected!" "$ERR"
 	fi
 
-	if ! Firmware_Version_Check; then
+	if ! Firmware_Version_Check
+	then
+		CHECKSFAILED=true
 		Print_Output false "Unsupported firmware version detected" "$ERR"
 		Print_Output false "$SCRIPT_NAME requires Merlin 384.15/384.13_4 or Fork 43E5 (or later)" "$ERR"
-		CHECKSFAILED="true"
 	fi
 
 	if [ "$CHECKSFAILED" = "false" ]
@@ -1400,6 +1426,44 @@ _Check_JFFS_SpaceAvailable_()
 }
 
 ##-------------------------------------##
+## Added by Martinski W. [2025-Jun-19] ##
+##-------------------------------------##
+_EscapeChars_()
+{ printf "%s" "$1" | sed 's/[][\/$.*^&-]/\\&/g' ; }
+
+##-------------------------------------##
+## Added by Martinski W. [2025-Jun-20] ##
+##-------------------------------------##
+_WriteVarDefToJSFile_()
+{
+   if [ $# -lt 2 ] || [ -z "$1" ] || [ -z "$2" ]
+   then return 1; fi
+
+   local varValue  sedValue
+   if [ $# -eq 3 ] && [ "$3" = "true" ]
+   then
+       varValue="$2"
+   else
+       varValue="'${2}'"
+       sedValue="$(_EscapeChars_ "$varValue")"
+   fi
+
+   local targetJSfile="$SCRIPT_STORAGE_DIR/.vnstatusage"
+   if [ ! -s "$targetJSfile" ]
+   then
+       echo "var $1 = ${varValue};" > "$targetJSfile"
+   elif
+      ! grep -q "^var $1 =.*" "$targetJSfile"
+   then
+       sed -i "1 i var $1 = ${varValue};" "$targetJSfile"
+   elif
+      ! grep -q "^var $1 = ${sedValue};" "$targetJSfile"
+   then
+       sed -i "s/^var $1 =.*/var $1 = ${sedValue};/" "$targetJSfile"
+   fi
+}
+
+##-------------------------------------##
 ## Added by Martinski W. [2025-May-01] ##
 ##-------------------------------------##
 JFFS_WarningLogTime()
@@ -1473,6 +1537,7 @@ _UpdateJFFS_FreeSpaceInfo_()
    [ ! -d "$SCRIPT_STORAGE_DIR" ] && return 1
 
    jffsFreeSpaceHR="$(_Get_JFFS_Space_ FREE HRx)"
+   ##TBD_OK##_WriteVarDefToJSFile_ "jffsAvailableSpaceStr" "$jffsFreeSpaceHR"
 
    if ! jffsFreeSpace="$(_Get_JFFS_Space_ FREE KB)" ; then return 1 ; fi
    if ! jffsMinxSpace="$(_JFFS_MinReservedFreeSpace_)" ; then return 1 ; fi
@@ -1490,6 +1555,7 @@ _UpdateJFFS_FreeSpaceInfo_()
        fi
        _JFFS_WarnLowFreeSpace_ "$jffsFreeSpaceHR"
    fi
+   ##TBD_OK##_WriteVarDefToJSFile_ "jffsAvailableSpaceLow" "$JFFS_LowFreeSpaceStatus"
 }
 
 ##-------------------------------------##
@@ -1534,6 +1600,12 @@ _SQLGetDBLogTimeStamp_()
 ##-------------------------------------##
 ## Added by Martinski W. [2025-Jun-16] ##
 ##-------------------------------------##
+readonly errorMsgsRegExp="Parse error|Runtime error|Error:"
+readonly corruptedBinExp="Illegal instruction|SQLite header and source version mismatch"
+readonly sqlErrorsRegExp="($errorMsgsRegExp|$corruptedBinExp)"
+readonly sqlLockedRegExp="(Parse|Runtime) error .*: database is locked"
+readonly sqlCorruptedMsg="SQLite3 binary is likely corrupted. Remove and reinstall the Entware package."
+##-----------------------------------------------------------------------
 _ApplyDatabaseSQLCmds_()
 {
     local errorCount=0  maxErrorCount=3  callFlag
@@ -1559,17 +1631,23 @@ _ApplyDatabaseSQLCmds_()
         fi
         sqlErrorMsg="$(cat "$tempLogFilePath")"
 
-        if echo "$sqlErrorMsg" | grep -qE "^(Parse error|Runtime error|Error:|Illegal instruction)"
+        if echo "$sqlErrorMsg" | grep -qE "^$sqlErrorsRegExp"
         then
-            if echo "$sqlErrorMsg" | grep -qE "^(Parse|Runtime) error .*: database is locked"
+            if echo "$sqlErrorMsg" | grep -qE "^$sqlLockedRegExp"
             then
                 foundLocked=true ; maxTriesCount=25
                 echo -n > "$tempLogFilePath"  ##Clear for next error found##
                 sleep 2 ; continue
             fi
+            if echo "$sqlErrorMsg" | grep -qE "^($corruptedBinExp)"
+            then  ## Corrupted SQLite3 Binary?? ##
+                errorCount="$maxErrorCount"
+                echo "$sqlCorruptedMsg" >> "$tempLogFilePath"
+                Print_Output true "SQLite3 Fatal Error[$callFlag]: $sqlCorruptedMsg" "$CRIT"
+            fi
             errorCount="$((errorCount + 1))"
             foundError=true ; foundLocked=false
-            Print_Output true "SQLite3 failure[$callFlag]: $sqlErrorMsg" "$ERR"
+            Print_Output true "SQLite3 Failure[$callFlag]: $sqlErrorMsg" "$ERR"
         fi
 
         if ! "$debgLogSQLcmds"
@@ -1613,23 +1691,27 @@ _ApplyDatabaseSQLCmds_()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-16] ##
+## Modified by Martinski W. [2025-Jun-21] ##
 ##----------------------------------------##
 Generate_CSVs()
 {
+	local foundError  foundLocked  resultStr  sqlProcSuccess
+
 	interface="$(_GetInterfaceNameFromConfig_)"
 	VNSTAT_DBASE="$(_GetVNStatDatabaseFilePath_)"
 	if [ -z "$interface" ] || [ -z "$VNSTAT_DBASE" ] || [ ! -f "$VNSTAT_DBASE" ]
 	then
-		Print_Output true "**ERROR** Unable to generate CSVs" "$CRIT"
+		Print_Output true "**ERROR** Unable to generate CSV files" "$CRIT"
 		return 1
 	fi
 	renice 15 $$
-	TZ=$(cat /etc/TZ)
+	TZ="$(cat /etc/TZ)"
 	export TZ
-
 	timenow="$(date +"%s")"
 
+	rm -f /tmp/dn-vnstatiface
+
+	sqlProcSuccess=true
 	{
 		echo ".headers off"
 		echo ".output /tmp/dn-vnstatiface"
@@ -1637,6 +1719,13 @@ Generate_CSVs()
 		echo "SELECT id FROM [interface] WHERE [name] = '$interface';"
 	} > /tmp/dn-vnstat.sql
 	_ApplyDatabaseSQLCmds_ /tmp/dn-vnstat.sql gnr1
+
+	if "$foundError" || "$foundLocked" || [ ! -s /tmp/dn-vnstatiface ]
+	then
+		sqlProcSuccess=false
+		Print_Output true "**ERROR**: Unable to get vnStat Interface ID [gnr1]." "$CRIT"
+		return 1
+	fi
 
 	interfaceid="$(cat /tmp/dn-vnstatiface)"
 	rm -f /tmp/dn-vnstatiface
@@ -1749,6 +1838,7 @@ Generate_CSVs()
 
 	rm -f "$CSV_OUTPUT_DIR/week"*
 
+	sqlProcSuccess=true
 	{
 		echo ".mode csv"
 		echo ".headers on"
@@ -1759,26 +1849,32 @@ Generate_CSVs()
 	_ApplyDatabaseSQLCmds_ /tmp/dn-vnstat-complete.sql gnr10
 	rm -f /tmp/dn-vnstat-complete.sql
 
+	if "$foundError" || "$foundLocked" || \
+	   [ ! -f "$CSV_OUTPUT_DIR/CompleteResults.htm" ]
+	then sqlProcSuccess=false ; fi
+
 	dos2unix "$CSV_OUTPUT_DIR/"*.htm
 
-	tmpoutputdir="/tmp/${SCRIPT_NAME}results"
-	mkdir -p "$tmpoutputdir"
-	mv -f "$CSV_OUTPUT_DIR/CompleteResults"*.htm "$tmpoutputdir/."
+	tmpOutputDir="/tmp/${SCRIPT_NAME}results"
+	mkdir -p "$tmpOutputDir"
+
+	[ -f "$CSV_OUTPUT_DIR/CompleteResults.htm" ] && \
+	mv -f "$CSV_OUTPUT_DIR/CompleteResults.htm" "$tmpOutputDir/."
 
 	OUTPUTTIMEMODE="$(OutputTimeMode check)"
 
 	if [ "$OUTPUTTIMEMODE" = "unix" ]
 	then
-		find "$tmpoutputdir/" -name '*.htm' -exec sh -c 'i="$1"; mv -- "$i" "${i%.htm}.csv"' _ {} \;
+		find "$tmpOutputDir/" -name '*.htm' -exec sh -c 'i="$1"; mv -- "$i" "${i%.htm}.csv"' _ {} \;
 	elif [ "$OUTPUTTIMEMODE" = "non-unix" ]
 	then
-		for i in "$tmpoutputdir/"*".htm"
+		for i in "$tmpOutputDir/"*".htm"
 		do
 			awk -F"," 'NR==1 {OFS=","; print} NR>1 {OFS=","; $1=strftime("%Y-%m-%d %H:%M:%S", $1); print }' "$i" > "$i.out"
 		done
 
-		find "$tmpoutputdir/" -name '*.htm.out' -exec sh -c 'i="$1"; mv -- "$i" "${i%.htm.out}.csv"' _ {} \;
-		rm -f "$tmpoutputdir/"*.htm
+		find "$tmpOutputDir/" -name '*.htm.out' -exec sh -c 'i="$1"; mv -- "$i" "${i%.htm.out}.csv"' _ {} \;
+		rm -f "$tmpOutputDir/"*.htm
 	fi
 
 	if [ ! -f /opt/bin/7za ]
@@ -1786,9 +1882,9 @@ Generate_CSVs()
 		opkg update
 		opkg install p7zip
 	fi
-	/opt/bin/7za a -y -bsp0 -bso0 -tzip "/tmp/${SCRIPT_NAME}data.zip" "$tmpoutputdir/*"
+	/opt/bin/7za a -y -bsp0 -bso0 -tzip "/tmp/${SCRIPT_NAME}data.zip" "$tmpOutputDir/*"
 	mv -f "/tmp/${SCRIPT_NAME}data.zip" "$CSV_OUTPUT_DIR"
-	rm -rf "$tmpoutputdir"
+	rm -rf "$tmpOutputDir"
 	_UpdateJFFS_FreeSpaceInfo_
 	renice 0 $$
 }
@@ -1807,15 +1903,17 @@ Generate_Images()
 	Auto_ServiceEvent create 2>/dev/null
 	Shortcut_Script create
 	Process_Upgrade
-	if [ ! -f /opt/lib/libjpeg.so ]; then
+	if [ ! -f /opt/lib/libjpeg.so ]
+	then
 		opkg update >/dev/null 2>&1
 		opkg install libjpeg-turbo >/dev/null 2>&1
 	fi
-	TZ=$(cat /etc/TZ)
+	TZ="$(cat /etc/TZ)"
 	export TZ
 
 	if [ $# -eq 0 ] || [ -z "$1" ]
-	then Print_Output false "vnstati updating stats for UI" "$PASS" ; fi
+	then Print_Output false "vnstati updating stats for WebUI" "$PASS"
+	fi
 
 	interface="$(_GetInterfaceNameFromConfig_)"
 	outputs="s hg d t m"   # what images to generate #
@@ -1829,7 +1927,7 @@ Generate_Images()
 
 	for output in $outputs
 	do
-		cp "$IMAGE_OUTPUT_DIR/vnstat_$output.png" "$IMAGE_OUTPUT_DIR/.vnstat_$output.htm"
+		cp -fp "$IMAGE_OUTPUT_DIR/vnstat_$output.png" "$IMAGE_OUTPUT_DIR/.vnstat_$output.htm"
 		rm -f "$IMAGE_OUTPUT_DIR/vnstat_$output.htm"
 	done
 }
@@ -1845,7 +1943,8 @@ Generate_Stats()
 		opkg update
 		opkg install findutils
 	fi
-	if [ -n "$PPID" ]; then
+	if [ -n "$PPID" ]
+	then
 		ps | grep -v grep | grep -v $$ | grep -v "$PPID" | grep -i "$SCRIPT_NAME" | grep generate | awk '{print $1}' | xargs kill -9 >/dev/null 2>&1
 	else
 		ps | grep -v grep | grep -v $$ | grep -i "$SCRIPT_NAME" | grep generate | awk '{print $1}' | xargs kill -9 >/dev/null 2>&1
@@ -1860,9 +1959,11 @@ Generate_Stats()
 	Auto_ServiceEvent create 2>/dev/null
 	Shortcut_Script create
 	Process_Upgrade
+
 	interface="$(_GetInterfaceNameFromConfig_)"
-	TZ=$(cat /etc/TZ)
+	TZ="$(cat /etc/TZ)"
 	export TZ
+
 	printf "vnstats [%s] as of: %s\n\n" "$interface" "$(date)" > "$VNSTAT_OUTPUT_FILE"
 	{
 		$VNSTAT_COMMAND -h 25 -i "$interface";
@@ -1923,7 +2024,7 @@ Generate_Email()
 				echo "Subject: $FRIENDLY_ROUTER_NAME - vnstat-stats as of $(date +"%H.%M on %F")"
 				echo "Date: $(date -R)"
 				echo ""
-				printf "%s\\n\\n" "$(grep " usagestring" "$SCRIPT_STORAGE_DIR/.vnstatusage" | cut -f2 -d'"')"
+				printf "%s\\n\\n" "$(_GetBandwidthUsageStringFromFile_)"
 			} > /tmp/mail.txt
 			cat "$VNSTAT_OUTPUT_FILE" >>/tmp/mail.txt
 		elif [ "$(DailyEmail check)" = "html" ]
@@ -1946,10 +2047,11 @@ Generate_Email()
 			} > /tmp/mail.txt
 
 			echo "<html><body><p>Welcome to your dn-vnstat stats email!</p>" > /tmp/message.html
-			echo "<p>$(grep " usagestring" "$SCRIPT_STORAGE_DIR/.vnstatusage" | cut -f2 -d'"')</p>" >> /tmp/message.html
+			echo "<p>$(_GetBandwidthUsageStringFromFile_)</p>" >> /tmp/message.html
 
 			outputs="s hg d t m"
-			for output in $outputs; do
+			for output in $outputs
+			do
 				echo "<p><img src=\"cid:vnstat_$output.png\"></p>" >> /tmp/message.html
 			done
 
@@ -1989,17 +2091,17 @@ Generate_Email()
 		if [ $# -lt 4 ] || [ -z "$4" ]
 		then Print_Output true "Attempting to send bandwidth usage email" "$PASS"
 		fi
-		usagepercentage="$2"
-		usagestring="$3"
+		usagePercentage="$2"
+		bwUsageStr="$3"
 		# plain text email to send #
 		{
 			echo "From: \"$FRIENDLY_ROUTER_NAME\" <$FROM_ADDRESS>"
 			echo "To: \"$TO_NAME\" <$TO_ADDRESS>"
-			echo "Subject: $FRIENDLY_ROUTER_NAME - vnstat data usage $usagepercentage warning - $(date +"%H.%M on %F")"
+			echo "Subject: $FRIENDLY_ROUTER_NAME - vnstat data usage $usagePercentage warning - $(date +"%H.%M on %F")"
 			echo "Date: $(date -R)"
 			echo ""
 		} > /tmp/mail.txt
-		printf "%s" "$usagestring" >> /tmp/mail.txt
+		printf "%s" "$bwUsageStr" >> /tmp/mail.txt
 	fi
 
 	#Send Email#
@@ -2217,19 +2319,36 @@ Reset_Allowance_Warnings()
 	fi
 }
 
+##-------------------------------------##
+## Added by Martinski W. [2025-Jun-21] ##
+##-------------------------------------##
+_GetBandwidthUsageStringFromFile_()
+{
+    if [ ! -s "$SCRIPT_STORAGE_DIR/.vnstatusage" ]
+    then echo "No data" ; return 1
+    fi
+    grep "^var usagestring" "$SCRIPT_STORAGE_DIR/.vnstatusage" | cut -d'"' -f2
+}
+
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Apr-27] ##
+## Modified by Martinski W. [2025-Jun-21] ##
 ##----------------------------------------##
 Check_Bandwidth_Usage()
 {
-	if [ ! -f /opt/bin/jq ]; then
+	if [ ! -f /opt/bin/jq ]
+	then
 		opkg update
 		opkg install jq
 	fi
-	TZ=$(cat /etc/TZ)
+	TZ="$(cat /etc/TZ)"
 	export TZ
 
 	interface="$(_GetInterfaceNameFromConfig_)"
+	if [ -z "$interface" ]
+	then
+		Print_Output true "**ERROR** No Interface ID found. Unable to check bandwidth usage" "$CRIT"
+		return 1
+	fi
 
 	rawbandwidthused="$($VNSTAT_COMMAND -i "$interface" --json m | jq -r '.interfaces[].traffic.month[-1] | .rx + .tx')"
 	userLimit="$(BandwidthAllowance check)"
@@ -2240,31 +2359,31 @@ Check_Bandwidth_Usage()
 		bandwidthused="$(echo "$rawbandwidthused" | awk '{printf("%.2f\n", $1/(1000*1000*1000*1000));}')"
 	fi
 
-	bandwidthpercentage=""
-	usagestring=""
+	bandwidthPercentage=""
+	bwUsageStr=""
 	if [ "$(echo "$userLimit 0" | awk '{print ($1 == $2)}')" -eq 1 ]
 	then
-		bandwidthpercentage="N/A"
-		usagestring="You have used ${bandwidthused}$(AllowanceUnit check) of data this cycle; the next cycle starts on day $(AllowanceStartDay check) of the month."
+		bandwidthPercentage="N/A"
+		bwUsageStr="You have used ${bandwidthused}$(AllowanceUnit check) of data this cycle; the next cycle starts on day $(AllowanceStartDay check) of the month."
 	else
-		bandwidthpercentage="$(echo "$bandwidthused $userLimit" | awk '{printf("%.2f\n", $1*100/$2);}')"
-		usagestring="You have used ${bandwidthpercentage}% (${bandwidthused}$(AllowanceUnit check)) of your ${userLimit}$(AllowanceUnit check) cycle allowance; the next cycle starts on day $(AllowanceStartDay check) of the month."
+		bandwidthPercentage="$(echo "$bandwidthused $userLimit" | awk '{printf("%.2f\n", $1*100/$2);}')"
+		bwUsageStr="You have used ${bandwidthPercentage}% (${bandwidthused}$(AllowanceUnit check)) of your ${userLimit}$(AllowanceUnit check) cycle allowance; the next cycle starts on day $(AllowanceStartDay check) of the month."
 	fi
 
 	local isVerbose=false
 	if [ $# -eq 0 ] || [ -z "$1" ]
 	then
 		isVerbose=true
-		Print_Output false "$usagestring" "$PASS"
+		Print_Output false "$bwUsageStr" "$PASS"
 	fi
 
-	if [ "$bandwidthpercentage" = "N/A" ] || \
-	   [ "$(echo "$bandwidthpercentage 75" | awk '{print ($1 < $2)}')" -eq 1 ]
+	if [ "$bandwidthPercentage" = "N/A" ] || \
+	   [ "$(echo "$bandwidthPercentage 75" | awk '{print ($1 < $2)}')" -eq 1 ]
 	then
 		echo "var usagethreshold = false;" > "$SCRIPT_STORAGE_DIR/.vnstatusage"
 		echo 'var thresholdstring = "";' >> "$SCRIPT_STORAGE_DIR/.vnstatusage"
-	elif [ "$(echo "$bandwidthpercentage 75" | awk '{print ($1 >= $2)}')" -eq 1 ] && \
-	     [ "$(echo "$bandwidthpercentage 90" | awk '{print ($1 < $2)}')" -eq 1 ]
+	elif [ "$(echo "$bandwidthPercentage 75" | awk '{print ($1 >= $2)}')" -eq 1 ] && \
+	     [ "$(echo "$bandwidthPercentage 90" | awk '{print ($1 < $2)}')" -eq 1 ]
 	then
 		"$isVerbose" && Print_Output false "Data use is at or above 75%" "$WARN"
 		echo "var usagethreshold = true;" > "$SCRIPT_STORAGE_DIR/.vnstatusage"
@@ -2272,13 +2391,13 @@ Check_Bandwidth_Usage()
 		if UsageEmail check && [ ! -f "$SCRIPT_STORAGE_DIR/.warning75" ]
 		then
 			if "$isVerbose"
-			then Generate_Email usage "75%" "$usagestring"
-			else Generate_Email usage "75%" "$usagestring" silent
+			then Generate_Email usage "75%" "$bwUsageStr"
+			else Generate_Email usage "75%" "$bwUsageStr" silent
 			fi
 			touch "$SCRIPT_STORAGE_DIR/.warning75"
 		fi
-	elif [ "$(echo "$bandwidthpercentage 90" | awk '{print ($1 >= $2)}')" -eq 1 ] && \
-	     [ "$(echo "$bandwidthpercentage 100" | awk '{print ($1 < $2)}')" -eq 1 ]
+	elif [ "$(echo "$bandwidthPercentage 90" | awk '{print ($1 >= $2)}')" -eq 1 ] && \
+	     [ "$(echo "$bandwidthPercentage 100" | awk '{print ($1 < $2)}')" -eq 1 ]
 	then
 		"$isVerbose" && Print_Output false "Data use is at or above 90%" "$ERR"
 		echo "var usagethreshold = true;" > "$SCRIPT_STORAGE_DIR/.vnstatusage"
@@ -2286,12 +2405,12 @@ Check_Bandwidth_Usage()
 		if UsageEmail check && [ ! -f "$SCRIPT_STORAGE_DIR/.warning90" ]
 		then
 			if "$isVerbose"
-			then Generate_Email usage "90%" "$usagestring"
-			else Generate_Email usage "90%" "$usagestring" silent
+			then Generate_Email usage "90%" "$bwUsageStr"
+			else Generate_Email usage "90%" "$bwUsageStr" silent
 			fi
 			touch "$SCRIPT_STORAGE_DIR/.warning90"
 		fi
-	elif [ "$(echo "$bandwidthpercentage 100" | awk '{print ($1 >= $2)}')" -eq 1 ]
+	elif [ "$(echo "$bandwidthPercentage 100" | awk '{print ($1 >= $2)}')" -eq 1 ]
 	then
 		"$isVerbose" && Print_Output false "Data use is at or above 100%" "$CRIT"
 		echo "var usagethreshold = true;" > "$SCRIPT_STORAGE_DIR/.vnstatusage"
@@ -2299,18 +2418,18 @@ Check_Bandwidth_Usage()
 		if UsageEmail check && [ ! -f "$SCRIPT_STORAGE_DIR/.warning100" ]
 		then
 			if "$isVerbose"
-			then Generate_Email usage "100%" "$usagestring"
-			else Generate_Email usage "100%" "$usagestring" silent
+			then Generate_Email usage "100%" "$bwUsageStr"
+			else Generate_Email usage "100%" "$bwUsageStr" silent
 			fi
 			touch "$SCRIPT_STORAGE_DIR/.warning100"
 		fi
 	fi
-	printf "var usagestring = \"%s\";\\n" "$usagestring" >> "$SCRIPT_STORAGE_DIR/.vnstatusage"
-	printf "var daterefeshed = \"%s\";\\n" "$(date +"%Y-%m-%d %T")" >> "$SCRIPT_STORAGE_DIR/.vnstatusage"
+	printf "var usagestring = \"%s\";\n" "$bwUsageStr" >> "$SCRIPT_STORAGE_DIR/.vnstatusage"
+	printf "var daterefeshed = \"%s\";\n" "$(date +"%Y-%m-%d %T")" >> "$SCRIPT_STORAGE_DIR/.vnstatusage"
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Apr-13] ##
+## Modified by Martinski W. [2025-Jun-20] ##
 ##----------------------------------------##
 Process_Upgrade()
 {
@@ -2318,9 +2437,11 @@ Process_Upgrade()
 
 	if [ ! -f "$SCRIPT_STORAGE_DIR/.vnstatusage" ]
 	then
-		echo "var usagethreshold = false;" > "$SCRIPT_STORAGE_DIR/.vnstatusage"
-		echo 'var thresholdstring = "";' >> "$SCRIPT_STORAGE_DIR/.vnstatusage"
-		echo 'var usagestring = "Not enough data gathered by vnstat";' >> "$SCRIPT_STORAGE_DIR/.vnstatusage"
+		{
+		   echo "var usagethreshold = false;"
+		   echo 'var thresholdstring = "";'
+		   echo 'var usagestring = "Not enough data gathered by vnstat";'
+		} > "$SCRIPT_STORAGE_DIR/.vnstatusage"
 	fi
 	
 	if ! grep -q "^UseUTC 0" "$VNSTAT_CONFIG"
@@ -2360,7 +2481,7 @@ ScriptHeader()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-16] ##
+## Modified by Martinski W. [2025-Jun-20] ##
 ##----------------------------------------##
 MainMenu()
 {
@@ -2392,6 +2513,7 @@ MainMenu()
 
 	storageLocStr="$(ScriptStorageLocation check | tr 'a-z' 'A-Z')"
 
+	_UpdateJFFS_FreeSpaceInfo_
 	jffsFreeSpace="$(_Get_JFFS_Space_ FREE HRx | sed 's/%/%%/')"
 	if ! echo "$JFFS_LowFreeSpaceStatus" | grep -E "^WARNING[0-9]$"
 	then
@@ -2419,7 +2541,7 @@ MainMenu()
 	printf "6.    Set start day of cycle for bandwidth allowance\n"
 	printf "      Currently: ${SETTING}%s${CLEARFORMAT}\n\n" "Day $(AllowanceStartDay check) of month"
 	printf "b.    Check bandwidth usage now\n"
-	printf "      ${SETTING}%s${CLEARFORMAT}\n\n" "$(grep " usagestring" "$SCRIPT_STORAGE_DIR/.vnstatusage" | cut -f2 -d'"')"
+	printf "      ${SETTING}%s${CLEARFORMAT}\n\n" "$(_GetBandwidthUsageStringFromFile_)"
 	printf "v.    Edit vnstat config\n\n"
 	printf "t.    Toggle time output mode\n"
 	printf "      Currently ${SETTING}%s${CLEARFORMAT} time values will be used for CSV exports\n\n" "$(OutputTimeMode check)"
@@ -2656,7 +2778,7 @@ Menu_Install()
 	Conf_Exists
 	Set_Version_Custom_Settings local "$SCRIPT_VERSION"
 	Set_Version_Custom_Settings server "$SCRIPT_VERSION"
-	ScriptStorageLocation load true
+	ScriptStorageLocation load
 	Create_Symlinks
 
 	Update_File vnstat.conf
@@ -2673,9 +2795,11 @@ Menu_Install()
 
 	if [ ! -f "$SCRIPT_STORAGE_DIR/.vnstatusage" ]
 	then
-		echo "var usagethreshold = false;" > "$SCRIPT_STORAGE_DIR/.vnstatusage"
-		echo 'var thresholdstring = "";' >> "$SCRIPT_STORAGE_DIR/.vnstatusage"
-		echo 'var usagestring = "Not enough data gathered by vnstat";' >> "$SCRIPT_STORAGE_DIR/.vnstatusage"
+		{
+		   echo "var usagethreshold = false;"
+		   echo 'var thresholdstring = "";'
+		   echo 'var usagestring = "Not enough data gathered by vnstat";'
+		} > "$SCRIPT_STORAGE_DIR/.vnstatusage"
 	fi
 
 	if [ -n "$(pidof vnstatd)" ]
@@ -2696,7 +2820,7 @@ Menu_Install()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Apr-27] ##
+## Modified by Martinski W. [2025-Jun-17] ##
 ##----------------------------------------##
 Menu_Startup()
 {
@@ -2711,7 +2835,7 @@ Menu_Startup()
 			Print_Output true "$1 does NOT contain Entware, not starting $SCRIPT_NAME" "$CRIT"
 			exit 1
 		else
-			Print_Output true "$1 contains Entware, starting $SCRIPT_NAME" "$PASS"
+			Print_Output true "$1 contains Entware, $SCRIPT_NAME $SCRIPT_VERSION starting up" "$PASS"
 		fi
 	fi
 
@@ -3009,11 +3133,12 @@ _FindandRemoveMenuAddOnsSection_()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Apr-27] ##
+## Modified by Martinski W. [2025-Jun-20] ##
 ##----------------------------------------##
 Menu_Uninstall()
 {
-	if [ -n "$PPID" ]; then
+	if [ -n "$PPID" ]
+	then
 		ps | grep -v grep | grep -v $$ | grep -v "$PPID" | grep -i "$SCRIPT_NAME" | grep generate | awk '{print $1}' | xargs kill -9 >/dev/null 2>&1
 	else
 		ps | grep -v grep | grep -v $$ | grep -i "$SCRIPT_NAME" | grep generate | awk '{print $1}' | xargs kill -9 >/dev/null 2>&1
@@ -3028,8 +3153,7 @@ Menu_Uninstall()
 	eval exec "$FD>$LOCKFILE"
 	flock -x "$FD"
 
-	MyWebPage=""
-	[ -s "$SCRIPT_DIR/vnstat-ui.asp" ] && Get_WebUI_Page "$SCRIPT_DIR/vnstat-ui.asp"
+	Get_WebUI_Page "$SCRIPT_DIR/vnstat-ui.asp"
 	if [ -n "$MyWebPage" ] && \
 	   [ "$MyWebPage" != "NONE" ] && \
 	   [ -f "$TEMP_MENU_TREE" ]
@@ -3220,7 +3344,6 @@ then SCRIPT_STORAGE_DIR="/opt/share/$SCRIPT_NAME.d"
 else SCRIPT_STORAGE_DIR="/jffs/addons/$SCRIPT_NAME.d"
 fi
 
-JFFS_LowFreeSpaceStatus="OK"
 SCRIPT_CONF="$SCRIPT_STORAGE_DIR/config"
 CSV_OUTPUT_DIR="$SCRIPT_STORAGE_DIR/csv"
 IMAGE_OUTPUT_DIR="$SCRIPT_STORAGE_DIR/images"
@@ -3229,6 +3352,8 @@ VNSTAT_DBASE="$(_GetVNStatDatabaseFilePath_)"
 VNSTAT_COMMAND="vnstat --config $VNSTAT_CONFIG"
 VNSTATI_COMMAND="vnstati --config $VNSTAT_CONFIG"
 VNSTAT_OUTPUT_FILE="$SCRIPT_STORAGE_DIR/vnstat.txt"
+JFFS_LowFreeSpaceStatus="OK"
+updateJFFS_SpaceInfo=false
 
 if [ "$SCRIPT_BRANCH" != "develop" ]
 then SCRIPT_VERS_INFO=""
@@ -3244,7 +3369,7 @@ then
 	Entware_Ready
 	Create_Dirs
 	Conf_Exists
-	ScriptStorageLocation load true
+	ScriptStorageLocation load
 	Create_Symlinks
 	Auto_Startup create 2>/dev/null
 	Auto_Cron create 2>/dev/null
@@ -3257,6 +3382,9 @@ then
 	exit 0
 fi
 
+##----------------------------------------##
+## Modified by Martinski W. [2025-Jun-20] ##
+##----------------------------------------##
 case "$1" in
 	install)
 		Check_Lock
@@ -3294,8 +3422,10 @@ case "$1" in
 		NTP_Ready
 		Entware_Ready
 		Generate_CSVs
+		exit 0
 	;;
 	service_event)
+		updateJFFS_SpaceInfo=true
 		if [ "$2" = "start" ] && [ "$3" = "$SCRIPT_NAME" ]
 		then
 			rm -f /tmp/detect_vnstat.js
@@ -3307,8 +3437,8 @@ case "$1" in
 			Check_Bandwidth_Usage silent
 			Generate_CSVs
 			echo 'var vnstatstatus = "Done";' > /tmp/detect_vnstat.js
+			updateJFFS_SpaceInfo=false
 			Clear_Lock
-			exit 0
 		elif [ "$2" = "start" ] && [ "$3" = "${SCRIPT_NAME}config" ]
 		then
 			Check_Lock webui
@@ -3317,16 +3447,14 @@ case "$1" in
 			Conf_FromSettings
 			echo 'var savestatus = "Success";' > "$SCRIPT_WEB_DIR/detect_save.js"
 			Clear_Lock
-			exit 0
 		elif [ "$2" = "start" ] && [ "$3" = "${SCRIPT_NAME}checkupdate" ]
 		then
 			Update_Check
-			exit 0
 		elif [ "$2" = "start" ] && [ "$3" = "${SCRIPT_NAME}doupdate" ]
 		then
 			Update_Version force unattended
-			exit 0
 		fi
+		"$updateJFFS_SpaceInfo" && _UpdateJFFS_FreeSpaceInfo_
 		exit 0
 	;;
 	update)
@@ -3340,7 +3468,7 @@ case "$1" in
 	postupdate)
 		Create_Dirs
 		Conf_Exists
-		ScriptStorageLocation load
+		ScriptStorageLocation load true
 		Create_Symlinks
 		Auto_Startup create 2>/dev/null
 		Auto_Cron create 2>/dev/null
