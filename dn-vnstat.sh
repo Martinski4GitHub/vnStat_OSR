@@ -11,7 +11,7 @@
 ## Forked from https://github.com/de-vnull/vnstat-on-merlin ##
 ##                                                          ##
 ##############################################################
-# Last Modified: 2025-Jun-22
+# Last Modified: 2025-Jul-03
 #-------------------------------------------------------------
 
 ########         Shellcheck directives     ######
@@ -36,7 +36,7 @@
 ### Start of script variables ###
 readonly SCRIPT_NAME="dn-vnstat"
 readonly SCRIPT_VERSION="v2.0.8"
-readonly SCRIPT_VERSTAG="25062223"
+readonly SCRIPT_VERSTAG="25070322"
 SCRIPT_BRANCH="main"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/vnstat-on-merlin/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
@@ -63,7 +63,6 @@ readonly BEGIN_MenuAddOnsTag="/\*\*BEGIN:_AddOns_\*\*/"
 readonly ENDIN_MenuAddOnsTag="/\*\*ENDIN:_AddOns_\*\*/"
 readonly scriptVERINFO="[${SCRIPT_VERSION}_${SCRIPT_VERSTAG}, Branch: $SCRIPT_BRANCH]"
 
-readonly oneHrSec=3600
 readonly _12Hours=43200
 readonly _24Hours=86400
 readonly _36Hours=129600
@@ -1537,7 +1536,7 @@ _UpdateJFFS_FreeSpaceInfo_()
    [ ! -d "$SCRIPT_STORAGE_DIR" ] && return 1
 
    jffsFreeSpaceHR="$(_Get_JFFS_Space_ FREE HRx)"
-   ##TBD_OK##_WriteVarDefToJSFile_ "jffsAvailableSpaceStr" "$jffsFreeSpaceHR"
+   _WriteVarDefToJSFile_ "jffsAvailableSpaceStr" "$jffsFreeSpaceHR"
 
    if ! jffsFreeSpace="$(_Get_JFFS_Space_ FREE KB)" ; then return 1 ; fi
    if ! jffsMinxSpace="$(_JFFS_MinReservedFreeSpace_)" ; then return 1 ; fi
@@ -1555,7 +1554,20 @@ _UpdateJFFS_FreeSpaceInfo_()
        fi
        _JFFS_WarnLowFreeSpace_ "$jffsFreeSpaceHR"
    fi
-   ##TBD_OK##_WriteVarDefToJSFile_ "jffsAvailableSpaceLow" "$JFFS_LowFreeSpaceStatus"
+   _WriteVarDefToJSFile_ "jffsAvailableSpaceLow" "$JFFS_LowFreeSpaceStatus"
+}
+
+##-------------------------------------##
+## Added by Martinski W. [2025-Jun-30] ##
+##-------------------------------------##
+_UpdateDatabaseFileSizeInfo_()
+{
+   local databaseFileSize
+   [ ! -d "$SCRIPT_STORAGE_DIR" ] && return 1
+
+   _UpdateJFFS_FreeSpaceInfo_
+   databaseFileSize="$(_GetFileSize_ "$(_GetVNStatDatabaseFilePath_)" HRx)"
+   _WriteVarDefToJSFile_ "sqlDatabaseFileSize" "$databaseFileSize"
 }
 
 ##-------------------------------------##
@@ -1691,7 +1703,7 @@ _ApplyDatabaseSQLCmds_()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-21] ##
+## Modified by Martinski W. [2025-Jun-30] ##
 ##----------------------------------------##
 Generate_CSVs()
 {
@@ -1885,7 +1897,8 @@ Generate_CSVs()
 	/opt/bin/7za a -y -bsp0 -bso0 -tzip "/tmp/${SCRIPT_NAME}data.zip" "$tmpOutputDir/*"
 	mv -f "/tmp/${SCRIPT_NAME}data.zip" "$CSV_OUTPUT_DIR"
 	rm -rf "$tmpOutputDir"
-	_UpdateJFFS_FreeSpaceInfo_
+
+	_UpdateDatabaseFileSizeInfo_
 	renice 0 $$
 }
 
@@ -2324,14 +2337,14 @@ Reset_Allowance_Warnings()
 ##-------------------------------------##
 _GetBandwidthUsageStringFromFile_()
 {
-    if [ ! -s "$SCRIPT_STORAGE_DIR/.vnstatusage" ]
-    then echo "No data" ; return 1
-    fi
-    grep "^var usagestring" "$SCRIPT_STORAGE_DIR/.vnstatusage" | cut -d'"' -f2
+   if [ ! -s "$SCRIPT_STORAGE_DIR/.vnstatusage" ]
+   then echo "No Data" ; return 1
+   fi
+   grep "^var usagestring =" "$SCRIPT_STORAGE_DIR/.vnstatusage" | awk -F "['\"]" '{print $2}'
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-21] ##
+## Modified by Martinski W. [2025-Jun-30] ##
 ##----------------------------------------##
 Check_Bandwidth_Usage()
 {
@@ -2380,14 +2393,18 @@ Check_Bandwidth_Usage()
 	if [ "$bandwidthPercentage" = "N/A" ] || \
 	   [ "$(echo "$bandwidthPercentage 75" | awk '{print ($1 < $2)}')" -eq 1 ]
 	then
-		echo "var usagethreshold = false;" > "$SCRIPT_STORAGE_DIR/.vnstatusage"
-		echo 'var thresholdstring = "";' >> "$SCRIPT_STORAGE_DIR/.vnstatusage"
+		{
+		   echo "var usagethreshold = false;"
+		   echo "var thresholdstring = '';"
+		} > "$SCRIPT_STORAGE_DIR/.vnstatusage"
 	elif [ "$(echo "$bandwidthPercentage 75" | awk '{print ($1 >= $2)}')" -eq 1 ] && \
 	     [ "$(echo "$bandwidthPercentage 90" | awk '{print ($1 < $2)}')" -eq 1 ]
 	then
 		"$isVerbose" && Print_Output false "Data use is at or above 75%" "$WARN"
-		echo "var usagethreshold = true;" > "$SCRIPT_STORAGE_DIR/.vnstatusage"
-		echo 'var thresholdstring = "Data use is at or above 75%";' >> "$SCRIPT_STORAGE_DIR/.vnstatusage"
+		{
+		   echo "var usagethreshold = true;"
+		   echo "var thresholdstring = 'Data use is at or above 75%';"
+		} > "$SCRIPT_STORAGE_DIR/.vnstatusage"
 		if UsageEmail check && [ ! -f "$SCRIPT_STORAGE_DIR/.warning75" ]
 		then
 			if "$isVerbose"
@@ -2400,8 +2417,10 @@ Check_Bandwidth_Usage()
 	     [ "$(echo "$bandwidthPercentage 100" | awk '{print ($1 < $2)}')" -eq 1 ]
 	then
 		"$isVerbose" && Print_Output false "Data use is at or above 90%" "$ERR"
-		echo "var usagethreshold = true;" > "$SCRIPT_STORAGE_DIR/.vnstatusage"
-		echo 'var thresholdstring = "Data use is at or above 90%";' >> "$SCRIPT_STORAGE_DIR/.vnstatusage"
+		{
+		   echo "var usagethreshold = true;"
+		   echo "var thresholdstring = 'Data use is at or above 90%';"
+		} > "$SCRIPT_STORAGE_DIR/.vnstatusage"
 		if UsageEmail check && [ ! -f "$SCRIPT_STORAGE_DIR/.warning90" ]
 		then
 			if "$isVerbose"
@@ -2413,8 +2432,10 @@ Check_Bandwidth_Usage()
 	elif [ "$(echo "$bandwidthPercentage 100" | awk '{print ($1 >= $2)}')" -eq 1 ]
 	then
 		"$isVerbose" && Print_Output false "Data use is at or above 100%" "$CRIT"
-		echo "var usagethreshold = true;" > "$SCRIPT_STORAGE_DIR/.vnstatusage"
-		echo 'var thresholdstring = "Data use is at or above 100%";' >> "$SCRIPT_STORAGE_DIR/.vnstatusage"
+		{
+		   echo "var usagethreshold = true;"
+		   echo "var thresholdstring = 'Data use is at or above 100%';"
+		} > "$SCRIPT_STORAGE_DIR/.vnstatusage"
 		if UsageEmail check && [ ! -f "$SCRIPT_STORAGE_DIR/.warning100" ]
 		then
 			if "$isVerbose"
@@ -2424,12 +2445,16 @@ Check_Bandwidth_Usage()
 			touch "$SCRIPT_STORAGE_DIR/.warning100"
 		fi
 	fi
-	printf "var usagestring = \"%s\";\n" "$bwUsageStr" >> "$SCRIPT_STORAGE_DIR/.vnstatusage"
-	printf "var daterefeshed = \"%s\";\n" "$(date +"%Y-%m-%d %T")" >> "$SCRIPT_STORAGE_DIR/.vnstatusage"
+	{
+	   printf "var usagestring = '%s';\n" "$bwUsageStr"
+	   printf "var daterefreshed = '%s';\n" "$(date +'%Y-%m-%d %T')"
+	} >> "$SCRIPT_STORAGE_DIR/.vnstatusage"
+
+	_UpdateDatabaseFileSizeInfo_
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-20] ##
+## Modified by Martinski W. [2025-Jun-30] ##
 ##----------------------------------------##
 Process_Upgrade()
 {
@@ -2439,17 +2464,24 @@ Process_Upgrade()
 	then
 		{
 		   echo "var usagethreshold = false;"
-		   echo 'var thresholdstring = "";'
-		   echo 'var usagestring = "Not enough data gathered by vnstat";'
+		   echo "var thresholdstring = '';"
+		   echo "var usagestring = 'Not enough data gathered by vnstat';"
+		   echo "var sqlDatabaseFileSize = '0 Bytes';"
+		   echo "var jffsAvailableSpaceLow = 'OK';"
+		   echo "var jffsAvailableSpaceStr = '0 Bytes';"
 		} > "$SCRIPT_STORAGE_DIR/.vnstatusage"
+	##
+	elif grep -q "^var daterefeshed = .*" "$SCRIPT_STORAGE_DIR/.vnstatusage"
+	then
+		sed -i 's/var daterefeshed =/var daterefreshed =/' "$SCRIPT_STORAGE_DIR/.vnstatusage"
 	fi
-	
+
 	if ! grep -q "^UseUTC 0" "$VNSTAT_CONFIG"
 	then
 		sed -i "/^DatabaseSynchronous/a\\\n# Enable or disable using UTC as timezone in the database for all entries.\n# When enabled, all entries added to the database will use UTC regardless of\n# the configured system timezone. When disabled, the configured system timezone\n# will be used. Changing this setting will not result in already existing data to be modified.\n# 1 = enabled, 0 = disabled.\nUseUTC 0" "$VNSTAT_CONFIG"
 		restartvnstat=true
 	fi
-	
+
 	if [ "$restartvnstat" = "true" ]
 	then
 		/opt/etc/init.d/S33vnstat restart >/dev/null 2>&1
@@ -2716,7 +2748,7 @@ MainMenu()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Apr-30] ##
+## Modified by Martinski W. [2025-Jun-30] ##
 ##----------------------------------------##
 Menu_Install()
 {
@@ -2797,8 +2829,11 @@ Menu_Install()
 	then
 		{
 		   echo "var usagethreshold = false;"
-		   echo 'var thresholdstring = "";'
-		   echo 'var usagestring = "Not enough data gathered by vnstat";'
+		   echo "var thresholdstring = '';"
+		   echo "var usagestring = 'Not enough data gathered by vnstat';"
+		   echo "var sqlDatabaseFileSize = '0 Bytes';"
+		   echo "var jffsAvailableSpaceLow = 'OK';"
+		   echo "var jffsAvailableSpaceStr = '0 Bytes';"
 		} > "$SCRIPT_STORAGE_DIR/.vnstatusage"
 	fi
 
