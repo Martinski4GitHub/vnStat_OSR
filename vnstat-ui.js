@@ -1,3 +1,7 @@
+/**----------------------------**/
+/** Last Modified: 2025-Jul-02 **/
+/**----------------------------**/
+
 var maxNoCharts = 12;
 var currentNoCharts = 0;
 
@@ -19,6 +23,13 @@ Chart.Tooltip.positioners.cursor = function(chartElements,coordinates){
 	return coordinates;
 };
 
+/**-------------------------------------**/
+/** Added by Martinski W. [2025-Jul-02] **/
+/**-------------------------------------**/
+var sqlDatabaseFileSize = '0 Bytes';
+var jffsAvailableSpaceLow = 'OK';
+var jffsAvailableSpaceStr = '0 Bytes';
+
 var dataintervallist = ['fiveminute','hour','day'];
 var chartlist = ['daily','weekly','monthly'];
 var timeunitlist = ['hour','day','day'];
@@ -28,7 +39,8 @@ var backgroundcolourlist = ['rgba(197,197,206,0.5)','rgba(14,192,9,0.5)','rgba(1
 var trendcolourlist = ['rgba(197,197,206,'+ShowTrendlines+')','rgba(14,192,9,'+ShowTrendlines+')','rgba(149,98,34,'+ShowTrendlines+')','rgba(56,149,157,'+ShowTrendlines+')'];
 var chartobjlist = ['Chart_DataUsage','Chart_CompareUsage'];
 
-function keyHandler(e){
+function keyHandler(e)
+{
 	if(e.keyCode == 82){
 		$(document).off('keydown');
 		ResetZoom();
@@ -54,7 +66,8 @@ $(document).keyup(function(e){
 	});
 });
 
-function UsageHint(){
+function UsageHint()
+{
 	var tag_name= document.getElementsByTagName('a');
 	for(var i = 0; i<tag_name.length; i++){
 		tag_name[i].onmouseout=nd;
@@ -63,7 +76,8 @@ function UsageHint(){
 	return overlib(hinttext,0,0);
 }
 
-function Validate_AllowanceStartDay(forminput){
+function Validate_AllowanceStartDay(forminput)
+{
 	var inputname = forminput.name;
 	var inputvalue = forminput.value*1;
 	
@@ -77,7 +91,8 @@ function Validate_AllowanceStartDay(forminput){
 	}
 }
 
-function Validate_DataAllowance(forminput){
+function Validate_DataAllowance(forminput)
+{
 	var inputname = forminput.name;
 	var inputvalue = forminput.value*1;
 	
@@ -91,7 +106,8 @@ function Validate_DataAllowance(forminput){
 	}
 }
 
-function Format_DataAllowance(forminput){
+function Format_DataAllowance(forminput)
+{
 	var inputname = forminput.name;
 	var inputvalue = forminput.value*1;
 	
@@ -104,7 +120,8 @@ function Format_DataAllowance(forminput){
 	}
 }
 
-function ScaleDataAllowance(){
+function ScaleDataAllowance()
+{
 	if(document.form.dnvnstat_allowanceunit.value == 'T'){
 		document.form.dnvnstat_dataallowance.value = document.form.dnvnstat_dataallowance.value*1 / 1000;
 	}
@@ -114,7 +131,8 @@ function ScaleDataAllowance(){
 	Format_DataAllowance(document.form.dnvnstat_dataallowance);
 }
 
-function GetCookie(cookiename,returntype){
+function GetCookie(cookiename,returntype)
+{
 	if(cookie.get('cookie_'+cookiename) != null){
 		return cookie.get('cookie_'+cookiename);
 	}
@@ -128,11 +146,13 @@ function GetCookie(cookiename,returntype){
 	}
 }
 
-function SetCookie(cookiename,cookievalue){
+function SetCookie(cookiename,cookievalue)
+{
 	cookie.set('cookie_'+cookiename,cookievalue,10 * 365);
 }
 
-function ScriptUpdateLayout(){
+function ScriptUpdateLayout()
+{
 	var localver = GetVersionNumber('local');
 	var serverver = GetVersionNumber('server');
 	$('#dnvnstat_version_local').text(localver);
@@ -145,7 +165,8 @@ function ScriptUpdateLayout(){
 	}
 }
 
-function update_status(){
+function update_status()
+{
 	$.ajax({
 		url: '/ext/dn-vnstat/detect_update.js',
 		dataType: 'script',
@@ -174,7 +195,8 @@ function update_status(){
 	});
 }
 
-function CheckUpdate(){
+function CheckUpdate()
+{
 	showhide('btnChkUpdate',false);
 	document.formScriptActions.action_script.value = 'start_dn-vnstatcheckupdate';
 	document.formScriptActions.submit();
@@ -182,23 +204,25 @@ function CheckUpdate(){
 	setTimeout(update_status,2000);
 }
 
-function DoUpdate(){
+function DoUpdate()
+{
 	document.form.action_script.value = 'start_dn-vnstatdoupdate';
 	document.form.action_wait.value = 15;
 	showLoading();
 	document.form.submit();
 }
 
-function GetVersionNumber(versiontype){
+function GetVersionNumber(versiontype)
+{
 	var versionprop;
-	if(versiontype == 'local'){
+	if (versiontype == 'local'){
 		versionprop = custom_settings.dnvnstat_version_local;
 	}
 	else if(versiontype == 'server'){
 		versionprop = custom_settings.dnvnstat_version_server;
 	}
 	
-	if(typeof versionprop == 'undefined' || versionprop == null){
+	if (typeof versionprop == 'undefined' || versionprop == null){
 		return 'N/A';
 	}
 	else{
@@ -304,46 +328,83 @@ function loadVnStatOutput()
 	});
 }
 
-function get_vnstatusage_file(){
+/**----------------------------------------**/
+/** Modified by Martinski W. [2025-Jul-02] **/
+/**----------------------------------------**/
+function get_vnstatusage_file()
+{
 	$.ajax({
 		url: '/ext/dn-vnstat/vnstatusage.js',
 		dataType: 'script',
-		error: function(xhr){
+		error: function(xhr)
+		{
 			setTimeout(get_vnstatusage_file,1000);
 		},
-		success: function(){
-			UpdateText();
+		success: function()
+		{
+			UpdateStatsText();
+			document.getElementById('databaseSize_text').textContent = 'Database Size: '+sqlDatabaseFileSize;
+
+			if (jffsAvailableSpaceLow.match(/^WARNING[0-9]/) === null)
+			{
+				showhide('jffsFreeSpace_LOW',false);
+				showhide('jffsFreeSpace_NOTE',false);
+				showhide('jffsFreeSpace_WARN',false);
+				document.getElementById('jffsFreeSpace_text').textContent = 'JFFS Available: ' + jffsAvailableSpaceStr;
+			}
+			else
+			{
+				document.getElementById('jffsFreeSpace_text').textContent = 'JFFS Available: ';
+				document.getElementById('jffsFreeSpace_LOW').textContent = jffsAvailableSpaceStr;
+				showhide('jffsFreeSpace_LOW',true);
+                if (document.form.spdmerlin_storagelocation.value === 'jffs')
+				{ showhide('jffsFreeSpace_NOTE',false); showhide('jffsFreeSpace_WARN',true); }
+				else
+				{ showhide('jffsFreeSpace_WARN',false); showhide('jffsFreeSpace_NOTE',true); }
+			}
+			setTimeout(get_vnstatusage_file, 4000);
 		}
 	});
 }
 
-function ShowHideDataUsageWarning(showusage){
-	if(showusage){
+function ShowHideDataUsageWarning(showusage)
+{
+	if (showusage)
+	{
 		document.getElementById('datausagewarning').style.display = '';
 		document.getElementById('scripttitle').style.marginLeft = '166px';
 	}
-	else{
+	else
+	{
 		document.getElementById('datausagewarning').style.display = 'none';
 		document.getElementById('scripttitle').style.marginLeft = '0px';
 	}
 }
 
-function UpdateText(){
-	$('#statstitle').html('The statistics and graphs on this page were last refreshed at: '+daterefeshed);
+function UpdateStatsText()
+{
+	$('#statstitle').html('The statistics and graphs on this page were last refreshed at: '+daterefreshed);
 	$('#spandatausage').html(usagestring);
 	ShowHideDataUsageWarning(usagethreshold);
 }
 
-function UpdateImages(){
+function UpdateImages()
+{
 	var images=['s','hg','d','t','m'];
 	var datestring = new Date().getTime();
-	for(var index = 0; index < images.length; index++){
+	for (var index = 0; index < images.length; index++)
+	{
 		document.getElementById('img_'+images[index]).style.backgroundImage='url(/ext/dn-vnstat/images/.vnstat_'+images[index]+'.htm?cachebuster='+datestring+')';
 	}
 }
 
-function UpdateStats(){
+/**----------------------------------------**/
+/** Modified by Martinski W. [2025-Jul-02] **/
+/**----------------------------------------**/
+function UpdateStats()
+{
 	showhide('btnUpdateStats',false);
+	showhide('databaseSize_text',false);
 	document.formScriptActions.action_script.value='start_dn-vnstat';
 	document.formScriptActions.submit();
 	document.getElementById('vnstatupdate_text').innerHTML = 'Updating bandwidth usage and vnstat data...';
@@ -352,24 +413,32 @@ function UpdateStats(){
 	setTimeout(update_vnstat,5000);
 }
 
-function update_vnstat(){
+/**----------------------------------------**/
+/** Modified by Martinski W. [2025-Jul-02] **/
+/**----------------------------------------**/
+function update_vnstat()
+{
 	$.ajax({
 		url: '/ext/dn-vnstat/detect_vnstat.js',
 		dataType: 'script',
 		error: function(xhr){
 			setTimeout(update_vnstat,1000);
 		},
-		success: function(){
-			if(vnstatstatus == 'InProgress'){
+		success: function()
+		{
+			if (vnstatstatus == 'InProgress')
+			{
 				setTimeout(update_vnstat,1000);
 			}
-			else if(vnstatstatus == 'LOCKED'){
+			else if (vnstatstatus == 'LOCKED')
+			{
 				document.getElementById('vnstatupdate_text').innerHTML = 'vnstat update already in progress';
 				showhide('imgVnStatUpdate',false);
 				showhide('vnstatupdate_text',true);
 				showhide('btnUpdateStats',true);
 			}
-			else if(vnstatstatus == 'Done'){
+			else if (vnstatstatus == 'Done')
+			{
 				get_vnstatusage_file();
 				UpdateImages();
 				loadVnStatOutput();
@@ -379,12 +448,14 @@ function update_vnstat(){
 				showhide('imgVnStatUpdate',false);
 				showhide('vnstatupdate_text',false);
 				showhide('btnUpdateStats',true);
+				showhide('databaseSize_text',true);
 			}
 		}
 	});
 }
 
-function AddEventHandlers(){
+function AddEventHandlers()
+{
 	$('.collapsible-jquery').off('click').on('click',function(){
 		$(this).siblings().toggle('fast',function(){
 			if($(this).css('display') == 'none'){
@@ -406,11 +477,15 @@ function AddEventHandlers(){
 	});
 }
 
-function SetCurrentPage(){
+function SetCurrentPage()
+{
 	document.form.next_page.value = window.location.pathname.substring(1);
 	document.form.current_page.value = window.location.pathname.substring(1);
 }
 
+/**----------------------------------------**/
+/** Modified by Martinski W. [2025-Jul-02] **/
+/**----------------------------------------**/
 function initial()
 {
 	SetCurrentPage();
@@ -422,6 +497,11 @@ function initial()
 	get_vnstatusage_file();
 	UpdateImages();
 	loadVnStatOutput();
+	showhide('databaseSize_text',true);
+	showhide('jffsFreeSpace_text',true);
+	showhide('jffsFreeSpace_LOW',false);
+	showhide('jffsFreeSpace_WARN',false);
+	showhide('jffsFreeSpace_NOTE',false);
 	$('#Time_Format').val(GetCookie('Time_Format','number'));
 	RedrawAllCharts();
 }
@@ -430,7 +510,8 @@ function reload(){
 	location.reload(true);
 }
 
-function Draw_Chart_NoData(txtchartname,texttodisplay){
+function Draw_Chart_NoData(txtchartname,texttodisplay)
+{
 	document.getElementById('divChart_'+txtchartname).width='730';
 	document.getElementById('divChart_'+txtchartname).height='500';
 	document.getElementById('divChart_'+txtchartname).style.width='730px';
@@ -445,7 +526,8 @@ function Draw_Chart_NoData(txtchartname,texttodisplay){
 	ctx.restore();
 }
 
-function Draw_Chart(txtchartname){
+function Draw_Chart(txtchartname)
+{
 	var txtunity = $('#'+txtchartname+'_Unit option:selected').text();
 	var txttitle = 'Data Usage';
 	var metric0 = 'Received';
