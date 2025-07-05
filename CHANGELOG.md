@@ -4,6 +4,33 @@ Note: R1 runs on all supported architectures (ARM, AARCH, MIPS). R2 runs only on
 
 # Version R2 (based on vnStat 2.x) #
 
+### v2.0.8 - 2025-Jul-03 ###
+  * Modified all SQLite3 calls to capture and log errors in the system log.
+
+  * Modified SQLite3 configuration parameters to improve the processing of database records.
+
+  * Added code to create a separate logfile to capture the SQLite3 errors with more verbosity.
+    Debug logfile default location: /opt/share/tmp/
+
+  * Added error-handling code when an SQLite3 database operation fails to create a file.
+
+  * When an SQLite3 operation returns error messages indicating a corrupted binary, the error-handling code will now log a separate message to the system logger and to its own debug logfile to let users know of the corrupted SQLite3 and the need to remove and reinstall its Entware package.
+
+  * New code to remove duplicate parameter key names found in the configuration file. Getting duplicate key values can cause "bad number" or "arithmetic syntax" errors.
+
+  * Modified the startup call made in the 'post-mount' script to check if the USB-attached disk partition passed as an argument has indeed Entware installed.
+
+  * Modified the call made in the 'service-event' script to check if the parameter contains the script name.
+
+  * Show the current database file size information on the WebUI page.
+
+  * Show the "JFFS Available" space information for the "Data Storage Location" option on the WebUI page.
+
+  * Fixed minor cosmetic glitch related to the "Data Usage Warning" message on the WebUI page, where the "Warning Bell" image had what appeared to be a "dot" underneath it.
+
+  * Miscellaneous code improvements.
+
+
 ### v2.0.7 - 2025-May-01 ###
   * Fixes to make sure the vnstatd Entware service is started during the reboot sequence after NTP is synced.
 
@@ -26,6 +53,7 @@ Note: R1 runs on all supported architectures (ARM, AARCH, MIPS). R2 runs only on
   * Added "export PATH" statement to give the built-in binaries higher priority than the equivalent Entware binaries.
 
   * Miscellaneous code improvements & fine-tuning.
+
 
 ### v 2.0.6 - 22-Sep-2024 ###
   * Fixed error when loading the webGUI page on the latest 3006.102.xx F/W version.
