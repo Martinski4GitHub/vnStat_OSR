@@ -11,7 +11,7 @@
 ## Forked from https://github.com/de-vnull/vnstat-on-merlin ##
 ##                                                          ##
 ##############################################################
-# Last Modified: 2025-Jul-03
+# Last Modified: 2025-Jul-20
 #-------------------------------------------------------------
 
 ########         Shellcheck directives     ######
@@ -35,9 +35,9 @@
 
 ### Start of script variables ###
 readonly SCRIPT_NAME="dn-vnstat"
-readonly SCRIPT_VERSION="v2.0.8"
-readonly SCRIPT_VERSTAG="25070322"
-SCRIPT_BRANCH="main"
+readonly SCRIPT_VERSION="v2.0.9"
+readonly SCRIPT_VERSTAG="25072023"
+SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/vnstat-on-merlin/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
 readonly SCRIPT_WEBPAGE_DIR="$(readlink -f /www/user)"
@@ -61,7 +61,8 @@ readonly webPageLineTabExp="\{url: \"$webPageFileRegExp\", tabName: "
 readonly webPageLineRegExp="${webPageLineTabExp}\"$SCRIPT_NAME\"\},"
 readonly BEGIN_MenuAddOnsTag="/\*\*BEGIN:_AddOns_\*\*/"
 readonly ENDIN_MenuAddOnsTag="/\*\*ENDIN:_AddOns_\*\*/"
-readonly scriptVERINFO="[${SCRIPT_VERSION}_${SCRIPT_VERSTAG}, Branch: $SCRIPT_BRANCH]"
+readonly branchx_TAG="Branch: $SCRIPT_BRANCH"
+readonly version_TAG="${SCRIPT_VERSION}_${SCRIPT_VERSTAG}"
 
 readonly _12Hours=43200
 readonly _24Hours=86400
@@ -98,6 +99,7 @@ readonly CLEARFORMAT="\\e[0m"
 readonly CLRct="\e[0m"
 readonly REDct="\e[1;31m"
 readonly GRNct="\e[1;32m"
+readonly MGNTct="\e[1;35m"
 readonly CritBREDct="\e[30;101m"
 readonly WarnBYLWct="\e[30;103m"
 readonly WarnBMGNct="\e[30;105m"
@@ -1698,7 +1700,7 @@ _ApplyDatabaseSQLCmds_()
     fi
     if "$foundError" || "$foundLocked"
     then
-        Print_Output true "SQLite process ${resultStr}" "$ERR"
+        Print_Output true "SQLite process[$callFlag] ${resultStr}" "$ERR"
     fi
 }
 
@@ -3317,8 +3319,8 @@ Entware_Ready()
 ##----------------------------------------##
 Show_About()
 {
+	printf "About ${MGNTct}${SCRIPT_VERS_INFO}${CLRct}\n"
 	cat <<EOF
-About $SCRIPT_VERS_INFO
   $SCRIPT_NAME is an implementation of vnStat for AsusWRT-Merlin
   to enable measurement of internet data usage and store results
   in a local database, with hourly, daily, and monthly summaries.
@@ -3343,8 +3345,8 @@ EOF
 ##----------------------------------------##
 Show_Help()
 {
+	printf "HELP ${MGNTct}${SCRIPT_VERS_INFO}${CLRct}\n"
 	cat <<EOF
-HELP $SCRIPT_VERS_INFO
 Available commands:
   $SCRIPT_NAME about            explains functionality
   $SCRIPT_NAME update           checks for updates
@@ -3355,8 +3357,8 @@ Available commands:
   $SCRIPT_NAME generate         get latest data from vnstat. also runs outputcsv
   $SCRIPT_NAME summary          get daily summary data from vnstat. runs automatically at end of day. also runs outputcsv
   $SCRIPT_NAME outputcsv        create CSVs from database, used by WebUI and export
-  $SCRIPT_NAME develop          switch to development branch
-  $SCRIPT_NAME stable           switch to stable branch
+  $SCRIPT_NAME develop          switch to development branch version
+  $SCRIPT_NAME stable           switch to stable/production branch version
 EOF
 	printf "\n"
 }
@@ -3390,9 +3392,9 @@ VNSTAT_OUTPUT_FILE="$SCRIPT_STORAGE_DIR/vnstat.txt"
 JFFS_LowFreeSpaceStatus="OK"
 updateJFFS_SpaceInfo=false
 
-if [ "$SCRIPT_BRANCH" != "develop" ]
-then SCRIPT_VERS_INFO=""
-else SCRIPT_VERS_INFO="$scriptVERINFO"
+if [ "$SCRIPT_BRANCH" = "main" ]
+then SCRIPT_VERS_INFO="[$branchx_TAG]"
+else SCRIPT_VERS_INFO="[$version_TAG, $branchx_TAG]"
 fi
 
 ##----------------------------------------##
