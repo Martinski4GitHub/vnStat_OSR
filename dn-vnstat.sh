@@ -11,7 +11,7 @@
 ## Forked from https://github.com/de-vnull/vnstat-on-merlin ##
 ##                                                          ##
 ##############################################################
-# Last Modified: 2025-Jul-27
+# Last Modified: 2025-Aug-04
 #-------------------------------------------------------------
 
 ########         Shellcheck directives     ######
@@ -36,7 +36,7 @@
 ### Start of script variables ###
 readonly SCRIPT_NAME="dn-vnstat"
 readonly SCRIPT_VERSION="v2.0.9"
-readonly SCRIPT_VERSTAG="25072723"
+readonly SCRIPT_VERSTAG="25080400"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/vnstat-on-merlin/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
@@ -362,9 +362,86 @@ Validate_Bandwidth()
 	fi
 }
 
-### Perform relevant actions for secondary files when being updated ###
+##-------------------------------------##
+## Added by Martinski W. [2025-Aug-03] ##
+##-------------------------------------##
+VNStat_ServiceCheck()
+{
+    local runFullCheck=true
+    local initServicePath  saveServicePath
+
+    if [ $# -gt 0 ] && [ -n "$1" ] && \
+       echo "$1" | grep -qE "^(true|false)$"
+    then runFullCheck="$1" ; fi
+
+    "$runFullCheck" && Entware_Ready
+    initServicePath="/opt/etc/init.d/S33vnstat"
+    saveServicePath="$SCRIPT_DIR/S33vnstat"
+
+    if "$runFullCheck" || [ ! -s "$saveServicePath" ]
+    then
+        Update_File S33vnstat >/dev/null 2>&1
+    else
+        # Stop & remove extraneous service scripts #
+        if [ -f /opt/etc/init.d/S32vnstat ]
+        then
+            /opt/etc/init.d/S32vnstat stop >/dev/null 2>&1
+            sleep 2 ; killall -q vnstatd ; sleep 1
+            rm -f /opt/etc/init.d/S32vnstat
+        fi
+        if [ -f /opt/etc/init.d/S32vnstat2 ]
+        then
+            /opt/etc/init.d/S32vnstat2 stop >/dev/null 2>&1
+            sleep 2 ; killall -q vnstatd ; sleep 1
+            rm -f /opt/etc/init.d/S32vnstat2
+        fi
+
+        # Make sure we have the vnStat version #
+        if [ -s "$saveServicePath" ] && [ -s "$initServicePath" ] && \
+           ! diff -q "$initServicePath" "$saveServicePath" >/dev/null 2>&1 
+        then
+            "$initServicePath" stop >/dev/null 2>&1
+            sleep 2 ; killall -q vnstatd
+            cp -fp "$saveServicePath" "$initServicePath"
+            chmod a+x "$initServicePath"
+        fi
+        [ -z "$(pidof vnstatd)" ] && "$initServicePath" restart
+    fi
+}
+
+##-------------------------------------##
+## Added by Martinski W. [2025-Aug-03] ##
+##-------------------------------------##
+VNStat_ServiceUpdate()
+{
+	local initServicePath="/opt/etc/init.d/S33vnstat"
+
+	if [ -f "$initServicePath" ]
+	then
+		"$initServicePath" stop >/dev/null 2>&1
+		sleep 2 ; killall -q vnstatd ; sleep 1
+		rm -f "$initServicePath"
+	fi
+	if [ -f /opt/etc/init.d/S32vnstat ]
+	then
+		/opt/etc/init.d/S32vnstat stop >/dev/null 2>&1
+		sleep 2 ; killall -q vnstatd ; sleep 1
+		rm -f /opt/etc/init.d/S32vnstat
+	fi
+	if [ -f /opt/etc/init.d/S32vnstat2 ]
+	then
+		/opt/etc/init.d/S32vnstat2 stop >/dev/null 2>&1
+		sleep 2 ; killall -q vnstatd ; sleep 1
+		rm -f /opt/etc/init.d/S32vnstat2
+	fi
+
+	Download_File "$SCRIPT_REPO/S33vnstat" "$initServicePath"
+	chmod a+x "$initServicePath"
+	"$initServicePath" restart >/dev/null 2>&1
+}
+
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Apr-27] ##
+## Modified by Martinski W. [2025-Aug-03] ##
 ##----------------------------------------##
 Update_File()
 {
@@ -411,22 +488,17 @@ Update_File()
 			fi
 		fi
 	elif [ "$1" = "S33vnstat" ]
-	then  ## Entware service script to launch vnstatd ##
-		tmpfile="/tmp/$1"
-		Download_File "$SCRIPT_REPO/$1" "$tmpfile"
-		if ! diff -q "$tmpfile" "/opt/etc/init.d/$1" >/dev/null 2>&1
+	then
+		srvceFile="$SCRIPT_DIR/$1"
+		rm -f "$srvceFile"
+		Download_File "$SCRIPT_REPO/$1" "$srvceFile"
+		if ! diff -q "$srvceFile" "/opt/etc/init.d/$1" >/dev/null 2>&1
 		then
-			if [ -f /opt/etc/init.d/S33vnstat ]
-			then
-				/opt/etc/init.d/S33vnstat stop >/dev/null 2>&1
-				sleep 2
-			fi
-			Download_File "$SCRIPT_REPO/$1" "/opt/etc/init.d/$1"
-			chmod 0755 "/opt/etc/init.d/$1"
-			/opt/etc/init.d/S33vnstat start >/dev/null 2>&1
 			Print_Output true "New version of $1 downloaded" "$PASS"
+			VNStat_ServiceUpdate
+		else
+			VNStat_ServiceCheck false
 		fi
-		rm -f "$tmpfile"
 	elif [ "$1" = "vnstat.conf" ]
 	then  ## vnstat config file ##
 		tmpfile="/tmp/$1"
@@ -736,11 +808,11 @@ Auto_ServiceEvent()
 					} >> /jffs/scripts/service-event
 				fi
 			else
-                {
+				{
 				  echo "#!/bin/sh" ; echo
 				  echo 'if echo "$2" | /bin/grep -q "'"$SCRIPT_NAME"'"; then { '"$theScriptFilePath"' service_event "$@" & }; fi # '"$SCRIPT_NAME"
 				  echo
-                } > /jffs/scripts/service-event
+				} > /jffs/scripts/service-event
 				chmod 0755 /jffs/scripts/service-event
 			fi
 		;;
@@ -1039,7 +1111,10 @@ Shortcut_Script()
 {
 	case $1 in
 		create)
-			if [ -d /opt/bin ] && [ ! -f "/opt/bin/$SCRIPT_NAME" ] && [ -f "/jffs/scripts/$SCRIPT_NAME" ]; then
+			if [ -d /opt/bin ] && \
+			   [ ! -f "/opt/bin/$SCRIPT_NAME" ] && \
+			   [ -f "/jffs/scripts/$SCRIPT_NAME" ]
+			then
 				ln -s "/jffs/scripts/$SCRIPT_NAME" /opt/bin
 				chmod 0755 "/opt/bin/$SCRIPT_NAME"
 			fi
@@ -1065,6 +1140,9 @@ PressEnter()
 	return 0
 }
 
+##----------------------------------------##
+## Modified by Martinski W. [2025-Aug-03] ##
+##----------------------------------------##
 Check_Requirements()
 {
 	CHECKSFAILED=false
@@ -1093,14 +1171,20 @@ Check_Requirements()
 	then
 		Print_Output false "Installing required packages from Entware" "$PASS"
 		opkg update
-		opkg install vnstat2
-		opkg install vnstati2
+		opkg install vnstat2 vnstati2
 		opkg install libjpeg-turbo >/dev/null 2>&1
 		opkg install jq
 		opkg install sqlite3-cli
 		opkg install p7zip
 		opkg install findutils
+		if [ -s /opt/etc/init.d/S32vnstat2 ]
+		then
+			/opt/etc/init.d/S32vnstat2 stop >/dev/null 2>&1
+			sleep 2 ; killall -q vnstatd ; sleep 1
+		fi
 		rm -f /opt/etc/vnstat.conf
+		rm -f /opt/etc/init.d/S33vnstat
+		rm -f /opt/etc/init.d/S32vnstat2
 		return 0
 	else
 		return 1
@@ -2515,7 +2599,7 @@ ScriptHeader()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-20] ##
+## Modified by Martinski W. [2025-Aug-03] ##
 ##----------------------------------------##
 MainMenu()
 {
@@ -2597,6 +2681,7 @@ MainMenu()
 		case "$menuOption" in
 			1)
 				printf "\n"
+				VNStat_ServiceCheck
 				if Check_Lock menu
 				then
 					Generate_Images
@@ -2769,7 +2854,7 @@ Menu_Install()
 		exit 1
 	fi
 
-	IFACE=""
+	WAN_IFACE=""
 	printf "\n${BOLD}WAN Interface detected as ${GRNct}%s${CLEARFORMAT}\n" "$(Get_WAN_IFace)"
 	while true
 	do
@@ -2777,7 +2862,7 @@ Menu_Install()
 		read -r confirm
 		case "$confirm" in
 			y|Y)
-				IFACE="$(Get_WAN_IFace)"
+				WAN_IFACE="$(Get_WAN_IFace)"
 				break
 			;;
 			n|N)
@@ -2796,7 +2881,7 @@ Menu_Install()
 					then
 						printf "\n${ERR}Input is not a valid interface or interface not up, please try again.${CLEARFORMAT}\n"
 					else
-						IFACE="$iface_lower"
+						WAN_IFACE="$iface_lower"
 						break
 					fi
 				done
@@ -2816,11 +2901,11 @@ Menu_Install()
 	Create_Symlinks
 
 	Update_File vnstat.conf
-	sed -i 's/^Interface .*$/Interface "'"$IFACE"'"/' "$VNSTAT_CONFIG"
+	sed -i 's/^Interface .*$/Interface "'"$WAN_IFACE"'"/' "$VNSTAT_CONFIG"
 
 	Update_File vnstat-ui.asp
-	Update_File S33vnstat
 	Update_File shared-jy.tar.gz
+	Update_File S33vnstat
 
 	Auto_Startup create 2>/dev/null
 	Auto_Cron create 2>/dev/null
@@ -2841,7 +2926,7 @@ Menu_Install()
 
 	if [ -n "$(pidof vnstatd)" ]
 	then
-		Print_Output true "Sleeping for 60sec before generating initial stats" "$WARN"
+		Print_Output true "Sleeping for 60 secs before generating initial stats..." "$WARN"
 		sleep 60
 		Generate_Images
 		Generate_Stats
@@ -2857,7 +2942,7 @@ Menu_Install()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-17] ##
+## Modified by Martinski W. [2025-Aug-03] ##
 ##----------------------------------------##
 Menu_Startup()
 {
@@ -2892,6 +2977,7 @@ Menu_Startup()
 	Set_Version_Custom_Settings local "$SCRIPT_VERSION"
 	Shortcut_Script create
 	Mount_WebUI
+	VNStat_ServiceCheck
 	Clear_Lock
 }
 
@@ -3170,7 +3256,7 @@ _FindandRemoveMenuAddOnsSection_()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-20] ##
+## Modified by Martinski W. [2025-Aug-03] ##
 ##----------------------------------------##
 Menu_Uninstall()
 {
@@ -3184,6 +3270,7 @@ Menu_Uninstall()
 	Auto_Startup delete 2>/dev/null
 	Auto_Cron delete 2>/dev/null
 	Auto_ServiceEvent delete 2>/dev/null
+	Shortcut_Script delete
 
 	LOCKFILE=/tmp/addonwebui.lock
 	FD=386
@@ -3207,14 +3294,18 @@ Menu_Uninstall()
 	rm -f "$SCRIPT_DIR/vnstat-ui.asp"
 	rm -rf "$SCRIPT_WEB_DIR" 2>/dev/null
 
-	Shortcut_Script delete
-	/opt/etc/init.d/S33vnstat stop >/dev/null 2>&1
+	if [ -f /opt/etc/init.d/S33vnstat ]
+	then
+		/opt/etc/init.d/S33vnstat stop >/dev/null 2>&1
+		sleep 2 ; killall -q vnstatd ; sleep 1
+	fi
 	touch /opt/etc/vnstat.conf
 	opkg remove --autoremove vnstati2
 	opkg remove --autoremove vnstat2
 
 	rm -f /opt/etc/init.d/S33vnstat
 	rm -f /opt/etc/vnstat.conf
+    rm -f "$SCRIPT_DIR/S33vnstat"
 
 	Reset_Allowance_Warnings force
 	rm -f "$SCRIPT_STORAGE_DIR/.vnstatusage"
@@ -3233,7 +3324,8 @@ Menu_Uninstall()
 			:
 		;;
 		*)
-			rm -rf "$SCRIPT_STORAGE_DIR"
+			rm -rf "$SCRIPT_DIR" 2>/dev/null
+			rm -rf "$SCRIPT_STORAGE_DIR" 2>/dev/null
 			rm -rf /opt/var/lib/vnstat
 			rm -f /opt/etc/vnstat.conf
 		;;
@@ -3409,12 +3501,26 @@ else SCRIPT_VERS_INFO="[$version_TAG, $branchx_TAG]"
 fi
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Apr-27] ##
+## Modified by Martinski W. [2025-Aug-04] ##
 ##----------------------------------------##
 if [ $# -eq 0 ] || [ -z "$1" ]
 then
 	NTP_Ready
 	Entware_Ready
+
+	if [ ! -d "$SCRIPT_DIR" ] || \
+	   [ ! -d "$SCRIPT_STORAGE_DIR" ] ||
+	   [ ! -f "$VNSTAT_CONFIG"  ]
+	then
+	    printf "\n${ERR}**ERROR**: $SCRIPT_NAME is NOT found installed.${CLRct}\n"
+	    printf "\n${SETTING}To install $SCRIPT_NAME use this command:${CLRct}"
+	    printf "\n${MGNTct}$0 install${CLRct}\n\n"
+	    PressEnter
+	    printf "\n${ERR}Exiting...${CLRct}\n\n"
+	    Clear_Lock
+	    exit 1
+	fi
+
 	Create_Dirs
 	Conf_Exists
 	ScriptStorageLocation load
@@ -3431,7 +3537,7 @@ then
 fi
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-20] ##
+## Modified by Martinski W. [2025-Aug-03] ##
 ##----------------------------------------##
 case "$1" in
 	install)
@@ -3446,6 +3552,7 @@ case "$1" in
 	generate)
 		NTP_Ready
 		Entware_Ready
+		VNStat_ServiceCheck false
 		Check_Lock
 		Generate_Images silent
 		Generate_Stats silent
@@ -3477,6 +3584,7 @@ case "$1" in
 		if [ "$2" = "start" ] && [ "$3" = "$SCRIPT_NAME" ]
 		then
 			rm -f /tmp/detect_vnstat.js
+			VNStat_ServiceCheck
 			Check_Lock webui
 			sleep 3
 			echo 'var vnstatstatus = "InProgress";' > /tmp/detect_vnstat.js
