@@ -11,7 +11,7 @@
 ## Forked from https://github.com/de-vnull/vnstat-on-merlin ##
 ##                                                          ##
 ##############################################################
-# Last Modified: 2025-Aug-04
+# Last Modified: 2025-Oct-26
 #-------------------------------------------------------------
 
 ########         Shellcheck directives     ######
@@ -35,8 +35,8 @@
 
 ### Start of script variables ###
 readonly SCRIPT_NAME="dn-vnstat"
-readonly SCRIPT_VERSION="v2.0.9"
-readonly SCRIPT_VERSTAG="25080400"
+readonly SCRIPT_VERSION="v2.0.10"
+readonly SCRIPT_VERSTAG="25102622"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/vnstat-on-merlin/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
@@ -61,8 +61,9 @@ readonly webPageLineTabExp="\{url: \"$webPageFileRegExp\", tabName: "
 readonly webPageLineRegExp="${webPageLineTabExp}\"$SCRIPT_NAME\"\},"
 readonly BEGIN_MenuAddOnsTag="/\*\*BEGIN:_AddOns_\*\*/"
 readonly ENDIN_MenuAddOnsTag="/\*\*ENDIN:_AddOns_\*\*/"
-readonly branchx_TAG="Branch: $SCRIPT_BRANCH"
-readonly version_TAG="${SCRIPT_VERSION}_${SCRIPT_VERSTAG}"
+readonly branchxStr_TAG="[Branch: $SCRIPT_BRANCH]"
+readonly versionDev_TAG="${SCRIPT_VERSION}_${SCRIPT_VERSTAG}"
+readonly versionMod_TAG="$SCRIPT_VERSION on $ROUTER_MODEL"
 
 readonly _12Hours=43200
 readonly _24Hours=86400
@@ -2577,25 +2578,52 @@ Process_Upgrade()
 	fi
 }
 
+##-------------------------------------##
+## Added by Martinski W. [2025-Oct-26] ##
+##-------------------------------------##
+_CenterTextStr_()
+{
+    if [ $# -lt 2 ] || [ -z "$1" ] || [ -z "$2" ] || \
+       ! echo "$2" | grep -qE "^[1-9][0-9]+$"
+    then echo ; return 1
+    fi
+    local stringLen="${#1}"
+    local space1Len="$((($2 - stringLen)/2))"
+    local space2Len="$space1Len"
+    local totalLen="$((space1Len + stringLen + space2Len))"
+
+    if [ "$totalLen" -lt "$2" ]
+    then space2Len="$((space2Len + 1))"
+    elif [ "$totalLen" -gt "$2" ]
+    then space1Len="$((space1Len - 1))"
+    fi
+    if [ "$space1Len" -gt 0 ] && [ "$space2Len" -gt 0 ]
+    then printf "%*s%s%*s" "$space1Len" '' "$1" "$space2Len" ''
+    else printf "%s" "$1"
+    fi
+}
+
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-16] ##
+## Modified by Martinski W. [2025-Oct-26] ##
 ##----------------------------------------##
 ScriptHeader()
 {
 	clear
-	printf "\n"
-	printf "${BOLD}##############################################################${CLEARFORMAT}\n"
-	printf "${BOLD}##                                                          ##${CLEARFORMAT}\n"
-	printf "${BOLD}##                     vnStat on Merlin                     ##${CLEARFORMAT}\n"
-	printf "${BOLD}##                for AsusWRT-Merlin routers                ##${CLEARFORMAT}\n"
-	printf "${BOLD}##                                                          ##${CLEARFORMAT}\n"
-	printf "${BOLD}##                %9s on %-18s           ##${CLEARFORMAT}\n" "$SCRIPT_VERSION" "$ROUTER_MODEL"
-	printf "${BOLD}##                                                          ## ${CLEARFORMAT}\n"
-	printf "${BOLD}##       https://github.com/AMTM-OSR/vnstat-on-merlin       ##${CLEARFORMAT}\n"
-	printf "${BOLD}## Forked from https://github.com/de-vnull/vnstat-on-merlin ##${CLEARFORMAT}\n"
-	printf "${BOLD}##                                                          ##${CLEARFORMAT}\n"
-	printf "${BOLD}##############################################################${CLEARFORMAT}\n"
-	printf "\n"
+	local spaceLen=56  colorCT
+	[ "$SCRIPT_BRANCH" = "main" ] && colorCT="$GRNct" || colorCT="$MGNTct"
+	echo
+	printf "${BOLD}##############################################################${CLRct}\n"
+	printf "${BOLD}##                                                          ##${CLRct}\n"
+	printf "${BOLD}##                     vnStat on Merlin                     ##${CLRct}\n"
+	printf "${BOLD}##                for AsusWRT-Merlin routers                ##${CLRct}\n"
+	printf "${BOLD}##                                                          ##${CLRct}\n"
+	printf "${BOLD}## ${GRNct}%s${CLRct}${BOLD} ##${CLRct}\n" "$(_CenterTextStr_ "$versionMod_TAG" "$spaceLen")"
+	printf "${BOLD}## ${colorCT}%s${CLRct}${BOLD} ##${CLRct}\n" "$(_CenterTextStr_ "$branchxStr_TAG" "$spaceLen")"
+	printf "${BOLD}##                                                          ## ${CLRct}\n"
+	printf "${BOLD}##       https://github.com/AMTM-OSR/vnstat-on-merlin       ##${CLRct}\n"
+	printf "${BOLD}## Forked from https://github.com/de-vnull/vnstat-on-merlin ##${CLRct}\n"
+	printf "${BOLD}##                                                          ##${CLRct}\n"
+	printf "${BOLD}##############################################################${CLRct}\n\n"
 }
 
 ##----------------------------------------##
@@ -3496,8 +3524,8 @@ JFFS_LowFreeSpaceStatus="OK"
 updateJFFS_SpaceInfo=false
 
 if [ "$SCRIPT_BRANCH" = "main" ]
-then SCRIPT_VERS_INFO="[$branchx_TAG]"
-else SCRIPT_VERS_INFO="[$version_TAG, $branchx_TAG]"
+then SCRIPT_VERS_INFO=""
+else SCRIPT_VERS_INFO="[$versionDev_TAG]"
 fi
 
 ##----------------------------------------##
@@ -3528,6 +3556,7 @@ then
 	Auto_Startup create 2>/dev/null
 	Auto_Cron create 2>/dev/null
 	Auto_ServiceEvent create 2>/dev/null
+	Set_Version_Custom_Settings local "$SCRIPT_VERSION"
 	Shortcut_Script create
 	_CheckFor_WebGUI_Page_
 	Process_Upgrade
@@ -3546,7 +3575,8 @@ case "$1" in
 		exit 0
 	;;
 	startup)
-		Menu_Startup "$2"
+		shift
+		Menu_Startup "$@"
 		exit 0
 	;;
 	generate)
