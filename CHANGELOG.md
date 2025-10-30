@@ -6,7 +6,6 @@ Note: R1 runs on all supported architectures (ARM, AARCH, MIPS). R2 runs only on
 
 ### v2.0.10 - 2025-Oct-30 ###
   * Removed old Tomato JavaScript file references.
-
   * Miscellaneous code improvements.
 
 
