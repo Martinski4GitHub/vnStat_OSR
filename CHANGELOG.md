@@ -4,10 +4,11 @@ Note: R1 runs on all supported architectures (ARM, AARCH, MIPS). R2 runs only on
 
 # Version R2 (based on vnStat 2.x) #
 
-### v2.0.10 - 2025-Oct-30 ###
-  * Removed old Tomato JavaScript file references.
-  * Miscellaneous code improvements.
-
+### v2.0.10 - 2025-Nov-04 ###
+  * IMPROVED: Modified code to re-initialize global parameters after USB-attached drive has been mounted and Entware is found.
+  * IMPROVED: More checks to clean up files when switching from JFFS to USB and vice versa.
+  * MODIFIED: Removed old Tomato JavaScript file references.
+  * IMPROVED: Miscellaneous code improvements.
 
 ### v2.0.9 - 2025-Aug-14 ###
   * Added code to double-check and make sure that the correct custom service script installed by vnStat-on-Merlin (for vnstatd) is found and executed, and to verify that it has not been overwritten or modified (e.g. via Entware package updates). These checks are performed at startup following a reboot, every time the vnstatd service is restarted, and every 5 minutes via the pre-existing cron job that generates stats.

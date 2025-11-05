@@ -11,7 +11,7 @@
 ## Forked from https://github.com/de-vnull/vnstat-on-merlin ##
 ##                                                          ##
 ##############################################################
-# Last Modified: 2025-Oct-26
+# Last Modified: 2025-Nov-04
 #-------------------------------------------------------------
 
 ########         Shellcheck directives     ######
@@ -36,7 +36,7 @@
 ### Start of script variables ###
 readonly SCRIPT_NAME="dn-vnstat"
 readonly SCRIPT_VERSION="v2.0.10"
-readonly SCRIPT_VERSTAG="25102622"
+readonly SCRIPT_VERSTAG="25110422"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/vnstat-on-merlin/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
@@ -130,7 +130,7 @@ Print_Output()
 		    "$PASS") prioNum=6 ;; #INFO#
 		          *) prioNum=5 ;; #NOTICE#
 		esac
-		logger -t "$SCRIPT_NAME" -p $prioNum "$2"
+		logger -t "${SCRIPT_NAME}_[$$]" -p $prioNum "$2"
 	fi
 	printf "${BOLD}${3}%s${CLEARFORMAT}\n\n" "$2"
 }
@@ -1610,7 +1610,7 @@ _JFFS_WarnLowFreeSpace_()
    then
        JFFS_WarningLogTime update "$currTimeSecs"
        logMsgStr="${logTagStr} JFFS Available Free Space ($1) is getting LOW."
-       logger -t "$SCRIPT_NAME" -p $logPriNum "$logMsgStr"
+       logger -t "${SCRIPT_NAME}_[$$]" -p $logPriNum "$logMsgStr"
    fi
 }
 
@@ -2969,6 +2969,26 @@ Menu_Install()
 	MainMenu
 }
 
+##-------------------------------------##
+## Added by Martinski W. [2025-Nov-04] ##
+##-------------------------------------##
+_SetParameters_()
+{
+    if [ -f "/opt/share/$SCRIPT_NAME.d/config" ]
+    then SCRIPT_STORAGE_DIR="/opt/share/$SCRIPT_NAME.d"
+    else SCRIPT_STORAGE_DIR="/jffs/addons/$SCRIPT_NAME.d"
+    fi
+
+    SCRIPT_CONF="$SCRIPT_STORAGE_DIR/config"
+    CSV_OUTPUT_DIR="$SCRIPT_STORAGE_DIR/csv"
+    IMAGE_OUTPUT_DIR="$SCRIPT_STORAGE_DIR/images"
+    VNSTAT_CONFIG="$SCRIPT_STORAGE_DIR/vnstat.conf"
+    VNSTAT_DBASE="$(_GetVNStatDatabaseFilePath_)"
+    VNSTAT_COMMAND="vnstat --config $VNSTAT_CONFIG"
+    VNSTATI_COMMAND="vnstati --config $VNSTAT_CONFIG"
+    VNSTAT_OUTPUT_FILE="$SCRIPT_STORAGE_DIR/vnstat.txt"
+}
+
 ##----------------------------------------##
 ## Modified by Martinski W. [2025-Aug-03] ##
 ##----------------------------------------##
@@ -2990,6 +3010,8 @@ Menu_Startup()
 	fi
 
 	NTP_Ready startup
+	Entware_Ready
+	_SetParameters_
 	Check_Lock
 
 	if [ "$1" != "force" ]; then
@@ -3507,19 +3529,7 @@ else sqlDBLogFilePath="/tmp/var/tmp/$sqlDBLogFileName"
 fi
 _SQLCheckDBLogFileSize_
 
-if [ -f "/opt/share/$SCRIPT_NAME.d/config" ]
-then SCRIPT_STORAGE_DIR="/opt/share/$SCRIPT_NAME.d"
-else SCRIPT_STORAGE_DIR="/jffs/addons/$SCRIPT_NAME.d"
-fi
-
-SCRIPT_CONF="$SCRIPT_STORAGE_DIR/config"
-CSV_OUTPUT_DIR="$SCRIPT_STORAGE_DIR/csv"
-IMAGE_OUTPUT_DIR="$SCRIPT_STORAGE_DIR/images"
-VNSTAT_CONFIG="$SCRIPT_STORAGE_DIR/vnstat.conf"
-VNSTAT_DBASE="$(_GetVNStatDatabaseFilePath_)"
-VNSTAT_COMMAND="vnstat --config $VNSTAT_CONFIG"
-VNSTATI_COMMAND="vnstati --config $VNSTAT_CONFIG"
-VNSTAT_OUTPUT_FILE="$SCRIPT_STORAGE_DIR/vnstat.txt"
+_SetParameters_
 JFFS_LowFreeSpaceStatus="OK"
 updateJFFS_SpaceInfo=false
 
