@@ -11,7 +11,7 @@
 ## Forked from https://github.com/de-vnull/vnstat-on-merlin ##
 ##                                                          ##
 ##############################################################
-# Last Modified: 2025-Nov-04
+# Last Modified: 2025-Nov-09
 #-------------------------------------------------------------
 
 ########         Shellcheck directives     ######
@@ -35,8 +35,8 @@
 
 ### Start of script variables ###
 readonly SCRIPT_NAME="dn-vnstat"
-readonly SCRIPT_VERSION="v2.0.10"
-readonly SCRIPT_VERSTAG="25110422"
+readonly SCRIPT_VERSION="v2.0.11"
+readonly SCRIPT_VERSTAG="25110920"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/vnstat-on-merlin/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
