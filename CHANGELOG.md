@@ -4,7 +4,8 @@ Note: R1 runs on all supported architectures (ARM, AARCH, MIPS). R2 runs only on
 
 # Version R2 (based on vnStat 2.x) #
 
-### v2.0.11 - 2025-Nov-09 ###
+### v2.0.11 - 2025-Nov-16 ###
+  * IMPROVED: Modified code to make sure we get correct parameters when changing settings from the WebUI.
   * IMPROVED: Miscellaneous code improvements.
 
 

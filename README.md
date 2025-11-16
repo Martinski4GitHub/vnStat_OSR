@@ -1,7 +1,7 @@
 # vnstat-on-merlin - _Release - R1 and R2_
 
 ## v2.0.11
-### Updated on 2025-Nov-09
+### Updated on 2025-Nov-16
 
 # README #
 
