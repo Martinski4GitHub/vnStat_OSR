@@ -11,7 +11,7 @@
 ## Forked from https://github.com/de-vnull/vnstat-on-merlin ##
 ##                                                          ##
 ##############################################################
-# Last Modified: 2025-Nov-04
+# Last Modified: 2025-Nov-16
 #-------------------------------------------------------------
 
 ########         Shellcheck directives     ######
@@ -35,9 +35,9 @@
 
 ### Start of script variables ###
 readonly SCRIPT_NAME="dn-vnstat"
-readonly SCRIPT_VERSION="v2.0.10"
-readonly SCRIPT_VERSTAG="25110422"
-SCRIPT_BRANCH="main"
+readonly SCRIPT_VERSION="v2.0.11"
+readonly SCRIPT_VERSTAG="25111608"
+SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/vnstat-on-merlin/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
 readonly SCRIPT_WEBPAGE_DIR="$(readlink -f /www/user)"
@@ -527,7 +527,7 @@ Update_File()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-May-01] ##
+## Modified by Martinski W. [2025-Nov-15] ##
 ##----------------------------------------##
 Conf_FromSettings()
 {
@@ -575,7 +575,7 @@ Conf_FromSettings()
 			rm -f "$TMPFILE"
 			rm -f "${SETTINGSFILE}.bak"
 
-			if diff "$SCRIPT_CONF" "${SCRIPT_CONF}.bak" | grep -q "STORAGELOCATION="
+			if diff -U0 "$SCRIPT_CONF" "${SCRIPT_CONF}.bak" | grep -qE "[-+]STORAGELOCATION="
 			then
 				STORAGEtype="$(ScriptStorageLocation check)"
 				if [ "$STORAGEtype" = "jffs" ]
@@ -589,6 +589,8 @@ Conf_FromSettings()
 				then
 				    ScriptStorageLocation usb
 				fi
+				Create_Dirs
+				Conf_Exists
 				Create_Symlinks
 			fi
 
@@ -1231,8 +1233,14 @@ ScriptStorageLocation()
 			printf "Please wait..."
 			sed -i 's/^STORAGELOCATION.*$/STORAGELOCATION=usb/' "$SCRIPT_CONF"
 			mkdir -p "/opt/share/$SCRIPT_NAME.d/"
-			rm -fr "/opt/share/$SCRIPT_NAME.d/csv" 2>/dev/null
-			rm -fr "/opt/share/$SCRIPT_NAME.d/images" 2>/dev/null
+			if [ -d "/opt/share/$SCRIPT_NAME.d/csv" ] && \
+			   [ -d "/jffs/addons/$SCRIPT_NAME.d/csv" ]
+			then rm -fr "/opt/share/$SCRIPT_NAME.d/csv"
+			fi
+			if [ -d "/opt/share/$SCRIPT_NAME.d/images" ] && \
+			   [ -d "/jffs/addons/$SCRIPT_NAME.d/images" ]
+			then rm -fr "/opt/share/$SCRIPT_NAME.d/images"
+			fi
 			mv -f "/jffs/addons/$SCRIPT_NAME.d/csv" "/opt/share/$SCRIPT_NAME.d/" 2>/dev/null
 			mv -f "/jffs/addons/$SCRIPT_NAME.d/images" "/opt/share/$SCRIPT_NAME.d/" 2>/dev/null
 			mv -f "/jffs/addons/$SCRIPT_NAME.d/config" "/opt/share/$SCRIPT_NAME.d/" 2>/dev/null
@@ -1254,8 +1262,14 @@ ScriptStorageLocation()
 			printf "Please wait..."
 			sed -i 's/^STORAGELOCATION.*$/STORAGELOCATION=jffs/' "$SCRIPT_CONF"
 			mkdir -p "/jffs/addons/$SCRIPT_NAME.d/"
-			rm -fr "/jffs/addons/$SCRIPT_NAME.d/csv" 2>/dev/null
-			rm -fr "/jffs/addons/$SCRIPT_NAME.d/images" 2>/dev/null
+			if [ -d "/opt/share/$SCRIPT_NAME.d/csv" ] && \
+			   [ -d "/jffs/addons/$SCRIPT_NAME.d/csv" ]
+			then rm -fr "/jffs/addons/$SCRIPT_NAME.d/csv"
+			fi
+			if [ -d "/opt/share/$SCRIPT_NAME.d/images" ] && \
+			   [ -d "/jffs/addons/$SCRIPT_NAME.d/images" ]
+			then rm -fr "/jffs/addons/$SCRIPT_NAME.d/images"
+			fi
 			mv -f "/opt/share/$SCRIPT_NAME.d/csv" "/jffs/addons/$SCRIPT_NAME.d/" 2>/dev/null
 			mv -f "/opt/share/$SCRIPT_NAME.d/images" "/jffs/addons/$SCRIPT_NAME.d/" 2>/dev/null
 			mv -f "/opt/share/$SCRIPT_NAME.d/config" "/jffs/addons/$SCRIPT_NAME.d/" 2>/dev/null
