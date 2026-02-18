@@ -11,7 +11,7 @@
 ## Forked from https://github.com/de-vnull/vnstat-on-merlin ##
 ##                                                          ##
 ##############################################################
-# Last Modified: 2025-Nov-16
+# Last Modified: 2026-Feb-18
 #-------------------------------------------------------------
 
 ########         Shellcheck directives     ######
@@ -35,8 +35,8 @@
 
 ### Start of script variables ###
 readonly SCRIPT_NAME="dn-vnstat"
-readonly SCRIPT_VERSION="v2.0.11"
-readonly SCRIPT_VERSTAG="25111608"
+readonly SCRIPT_VERSION="v2.0.12"
+readonly SCRIPT_VERSTAG="26021800"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/vnstat-on-merlin/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
@@ -64,6 +64,9 @@ readonly ENDIN_MenuAddOnsTag="/\*\*ENDIN:_AddOns_\*\*/"
 readonly branchxStr_TAG="[Branch: $SCRIPT_BRANCH]"
 readonly versionDev_TAG="${SCRIPT_VERSION}_${SCRIPT_VERSTAG}"
 readonly versionMod_TAG="$SCRIPT_VERSION on $ROUTER_MODEL"
+
+# To support automatic script updates from AMTM #
+doScriptUpdateFromAMTM=true
 
 readonly _12Hours=43200
 readonly _24Hours=86400
@@ -264,8 +267,6 @@ Update_Check()
 	echo "$doupdate,$localver,$serverver"
 }
 
-### Updates the script from Github including any secondary files ###
-### Accepts arguments of:
 ### force - download from server even if no change detected
 ### unattended - don't return user to script CLI menu
 ##----------------------------------------##
@@ -280,9 +281,11 @@ Update_Version()
 		localver="$(echo "$updatecheckresult" | cut -f2 -d',')"
 		serverver="$(echo "$updatecheckresult" | cut -f3 -d',')"
 
-		if [ "$isupdate" = "version" ]; then
+		if [ "$isupdate" = "version" ]
+		then
 			Print_Output true "New version of $SCRIPT_NAME available - $serverver" "$PASS"
-		elif [ "$isupdate" = "md5" ]; then
+		elif [ "$isupdate" = "md5" ]
+		then
 			Print_Output true "MD5 hash of $SCRIPT_NAME does not match - hotfix available - $serverver" "$PASS"
 		fi
 
@@ -343,6 +346,23 @@ Update_Version()
 		fi
 		exit 0
 	fi
+}
+
+##-------------------------------------##
+## Added by Martinski W. [2026-Feb-18] ##
+##-------------------------------------##
+ScriptUpdateFromAMTM()
+{
+    if ! "$doScriptUpdateFromAMTM"
+    then
+        printf "Automatic script updates via AMTM are currently disabled.\n\n"
+        return 1
+    fi
+    if [ $# -gt 0 ] && [ "$1" = "check" ]
+    then return 0
+    fi
+    Update_Version force unattended
+    return "$?"
 }
 
 Validate_Number()
@@ -3590,7 +3610,7 @@ then
 fi
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Aug-03] ##
+## Modified by Martinski W. [2026-Feb-18] ##
 ##----------------------------------------##
 case "$1" in
 	install)
@@ -3674,6 +3694,11 @@ case "$1" in
 	forceupdate)
 		Update_Version force
 		exit 0
+	;;
+	amtmupdate)
+		shift
+		ScriptUpdateFromAMTM "$@"
+		exit "$?"
 	;;
 	postupdate)
 		Create_Dirs
