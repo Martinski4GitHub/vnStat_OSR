@@ -11,7 +11,7 @@
 ## Forked from https://github.com/de-vnull/vnstat-on-merlin ##
 ##                                                          ##
 ##############################################################
-# Last Modified: 2026-Feb-18
+# Last Modified: 2026-Mar-15
 #-------------------------------------------------------------
 
 ########         Shellcheck directives     ######
@@ -36,7 +36,7 @@
 ### Start of script variables ###
 readonly SCRIPT_NAME="dn-vnstat"
 readonly SCRIPT_VERSION="v2.0.12"
-readonly SCRIPT_VERSTAG="26021800"
+readonly SCRIPT_VERSTAG="26031521"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/vnstat-on-merlin/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
@@ -76,13 +76,16 @@ readonly oneMByte=1048576
 readonly ei8MByte=8388608
 readonly ni9MByte=9437184
 readonly tenMByte=10485760
-readonly oneGByte=1073741824
+readonly oneGiByte=1073741824
+readonly oneGByteSI=1000000000
 readonly SHARE_TEMP_DIR="/opt/share/tmp"
+readonly tempEMailContent="/tmp/tempEMailContent.$$.TXT"
+readonly theEMailDateTimeFormat="%Y-%b-%d %a %I:%M:%S %p %Z"
 
 ##-------------------------------------##
 ## Added by Martinski W. [2025-Jun-16] ##
 ##-------------------------------------##
-readonly sqlDBLogFileSize=102400
+readonly sqlDBLogFileSize=102400  ## 100KB ##
 readonly sqlDBLogDateTime="%Y-%m-%d %H:%M:%S"
 readonly sqlDBLogFileName="${SCRIPT_NAME}_DBSQL_DEBUG.LOG"
 
@@ -135,7 +138,7 @@ Print_Output()
 		esac
 		logger -t "${SCRIPT_NAME}_[$$]" -p $prioNum "$2"
 	fi
-	printf "${BOLD}${3}%s${CLEARFORMAT}\n\n" "$2"
+	printf "${BOLD}${3}${2}${CLEARFORMAT}\n\n"
 }
 
 ### Check firmware version contains the "am_addons" feature flag ###
@@ -563,7 +566,7 @@ Conf_FromSettings()
 			cp -a "$VNSTAT_CONFIG" "${VNSTAT_CONFIG}.bak"
 			grep "^dnvnstat_" "$SETTINGSFILE" | grep -v "version" > "$TMPFILE"
 			sed -i "s/^dnvnstat_//g;s/ /=/g" "$TMPFILE"
-			warningresetrequired="false"
+			warningresetrequired=false
 			while IFS='' read -r line || [ -n "$line" ]
 			do
 				SETTINGNAME="$(echo "$line" | cut -f1 -d'=' | awk '{ print toupper($1) }')"
@@ -574,7 +577,7 @@ Conf_FromSettings()
 					then
 						if [ "$(echo "$SETTINGVALUE $(BandwidthAllowance check)" | awk '{print ($1 != $2)}')" -eq 1 ]
 						then
-							warningresetrequired="true"
+							warningresetrequired=true
 						fi
 					fi
 					sed -i "s/$SETTINGNAME=.*/$SETTINGNAME=$SETTINGVALUE/" "$SCRIPT_CONF"
@@ -582,7 +585,7 @@ Conf_FromSettings()
 				then
 					if [ "$SETTINGVALUE" != "$(AllowanceStartDay check)" ]
 					then
-						warningresetrequired="true"
+						warningresetrequired=true
 					fi
 					sed -i 's/^MonthRotate .*$/MonthRotate '"$SETTINGVALUE"'/' "$VNSTAT_CONFIG"
 				fi
@@ -615,10 +618,11 @@ Conf_FromSettings()
 			fi
 
 			/opt/etc/init.d/S33vnstat restart >/dev/null 2>&1
-			TZ=$(cat /etc/TZ)
+			TZ="$(cat /etc/TZ)"
 			export TZ
 
-			if [ "$warningresetrequired" = "true" ]; then
+			if "$warningresetrequired"
+			then
 				Reset_Allowance_Warnings force
 			fi
 			Check_Bandwidth_Usage silent
@@ -719,7 +723,7 @@ _GetConfigParam_()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-May-01] ##
+## Modified by Martinski W. [2026-Mar-15] ##
 ##----------------------------------------##
 Conf_Exists()
 {
@@ -752,8 +756,20 @@ Conf_Exists()
 			sed -i 's/^OutputStyle.*$/OutputStyle 0/' "$VNSTAT_CONFIG"
 			restartvnstat=true
 		fi
+		if ! grep -q '^DayFormat "%Y-%m-%d"' "$VNSTAT_CONFIG"; then
+			sed -i 's/^DayFormat.*$/DayFormat "%Y-%m-%d"/' "$VNSTAT_CONFIG"
+			restartvnstat=true
+		fi
+		if ! grep -q '^TopFormat "%Y-%m-%d"' "$VNSTAT_CONFIG"; then
+			sed -i 's/^TopFormat.*$/TopFormat "%Y-%m-%d"/' "$VNSTAT_CONFIG"
+			restartvnstat=true
+		fi
 		if ! grep -q '^MonthFormat "%Y-%m"' "$VNSTAT_CONFIG"; then
 			sed -i 's/^MonthFormat.*$/MonthFormat "%Y-%m"/' "$VNSTAT_CONFIG"
+			restartvnstat=true
+		fi
+		if ! grep -q '^HeaderFormat "%Y-%b-%d %H:%M %a"' "$VNSTAT_CONFIG"; then
+			sed -i 's/^HeaderFormat.*$/HeaderFormat "%Y-%b-%d %H:%M %a"/' "$VNSTAT_CONFIG"
 			restartvnstat=true
 		fi
 		if [ "$restartvnstat" = "true" ]
@@ -1375,7 +1391,7 @@ _GetFileSize_()
            case "$sizeUnits" in
                KB) fileSize="$(_GetNum_ "($fileSize / $oneKByte)")" ;;
                MB) fileSize="$(_GetNum_ "($fileSize / $oneMByte)")" ;;
-               GB) fileSize="$(_GetNum_ "($fileSize / $oneGByte)")" ;;
+               GB) fileSize="$(_GetNum_ "($fileSize / $oneGiByte)")" ;;
            esac
            echo "$fileSize"
            ;;
@@ -1712,6 +1728,18 @@ _GetInterfaceNameFromConfig_()
     if [ ! -s "$VNSTAT_CONFIG" ] ; then echo ; return 1 ; fi
     iFaceName="$(grep '^Interface ' "$VNSTAT_CONFIG" | awk -F ' ' '{print $2}' | sed 's/"//g')"
     echo "$iFaceName"
+    return 0
+}
+
+##-------------------------------------##
+## Added by Martinski W. [2026-Mar-15] ##
+##-------------------------------------##
+_GetUnitModeTypeFromConfig_()
+{
+    local unitMode
+    if [ ! -s "$VNSTAT_CONFIG" ] ; then echo 2 ; return 1 ; fi
+    unitMode="$(grep '^UnitMode ' "$VNSTAT_CONFIG" | awk -F ' ' '{print $2}' | sed 's/"//g')"
+    echo "$unitMode"
     return 0
 }
 
@@ -2067,7 +2095,7 @@ Generate_Images()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Apr-27] ##
+## Modified by Martinski W. [2026-Mar-15] ##
 ##----------------------------------------##
 Generate_Stats()
 {
@@ -2098,13 +2126,14 @@ Generate_Stats()
 	TZ="$(cat /etc/TZ)"
 	export TZ
 
-	printf "vnstats [%s] as of: %s\n\n" "$interface" "$(date)" > "$VNSTAT_OUTPUT_FILE"
 	{
+		printf "vnstats [%s] as of %s\n" "$interface" "$(date +"$theEMailDateTimeFormat")"
+		echo
 		$VNSTAT_COMMAND -h 25 -i "$interface";
 		$VNSTAT_COMMAND -d 8 -i "$interface";
 		$VNSTAT_COMMAND -m 6 -i "$interface";
 		$VNSTAT_COMMAND -y 5 -i "$interface";
-	} >> "$VNSTAT_OUTPUT_FILE"
+	} > "$VNSTAT_OUTPUT_FILE"
 
 	if [ $# -eq 0 ] || [ -z "$1" ]
 	then
@@ -2115,7 +2144,7 @@ Generate_Stats()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-16] ##
+## Modified by Martinski W. [2026-Mar-15] ##
 ##----------------------------------------##
 Generate_Email()
 {
@@ -2151,37 +2180,37 @@ Generate_Email()
 		Print_Output true "Attempting to send summary statistic email" "$PASS"
 		if [ "$(DailyEmail check)" = "text" ]
 		then
-			# plain text email to send #
+			## Plain Text Email ##
 			{
 				echo "From: \"$FRIENDLY_ROUTER_NAME\" <$FROM_ADDRESS>"
 				echo "To: \"$TO_NAME\" <$TO_ADDRESS>"
-				echo "Subject: $FRIENDLY_ROUTER_NAME - vnstat-stats as of $(date +"%H.%M on %F")"
+				echo "Subject: $FRIENDLY_ROUTER_NAME - vnstat summary $(date +'on %F')"
 				echo "Date: $(date -R)"
-				echo ""
-				printf "%s\\n\\n" "$(_GetBandwidthUsageStringFromFile_)"
-			} > /tmp/mail.txt
-			cat "$VNSTAT_OUTPUT_FILE" >>/tmp/mail.txt
+				echo
+				printf "%s\n\n" "$(_GetBandwidthUsageStringFromFile_ TEXT)"
+			} > "$tempEMailContent"
+			cat "$VNSTAT_OUTPUT_FILE" >> "$tempEMailContent"
 		elif [ "$(DailyEmail check)" = "html" ]
 		then
-			# html message to send #
+			## HTML-format Email ##
 			{
 				echo "From: \"$FRIENDLY_ROUTER_NAME\" <$FROM_ADDRESS>"
 				echo "To: \"$TO_NAME\" <$TO_ADDRESS>"
-				echo "Subject: $FRIENDLY_ROUTER_NAME - vnstat-stats as of $(date +"%H.%M on %F")"
+				echo "Subject: $FRIENDLY_ROUTER_NAME - vnstat summary $(date +'on %F')"
 				echo "Date: $(date -R)"
 				echo "MIME-Version: 1.0"
 				echo "Content-Type: multipart/mixed; boundary=\"MULTIPART-MIXED-BOUNDARY\""
 				echo "hello there"
-				echo ""
+				echo
 				echo "--MULTIPART-MIXED-BOUNDARY"
 				echo "Content-Type: multipart/related; boundary=\"MULTIPART-RELATED-BOUNDARY\""
-				echo ""
+				echo
 				echo "--MULTIPART-RELATED-BOUNDARY"
 				echo "Content-Type: multipart/alternative; boundary=\"MULTIPART-ALTERNATIVE-BOUNDARY\""
-			} > /tmp/mail.txt
+			} > "$tempEMailContent"
 
-			echo "<html><body><p>Welcome to your dn-vnstat stats email!</p>" > /tmp/message.html
-			echo "<p>$(_GetBandwidthUsageStringFromFile_)</p>" >> /tmp/message.html
+			echo "<html><body><p>This is your dn-vnstat summary stats as of $(date +"$theEMailDateTimeFormat").</p>" > /tmp/message.html
+			echo "<p>$(_GetBandwidthUsageStringFromFile_ TEXT)<br/><br/></p>" >> /tmp/message.html
 
 			outputs="s hg d t m"
 			for output in $outputs
@@ -2195,30 +2224,30 @@ Generate_Email()
 			rm -f /tmp/message.html
 
 			{
-				echo ""
+				echo
 				echo "--MULTIPART-ALTERNATIVE-BOUNDARY"
 				echo "Content-Type: text/html; charset=utf-8"
 				echo "Content-Transfer-Encoding: base64"
-				echo ""
+				echo
 				echo "$message_base64"
-				echo ""
+				echo
 				echo "--MULTIPART-ALTERNATIVE-BOUNDARY--"
-				echo ""
-			} >> /tmp/mail.txt
+				echo
+			} >> "$tempEMailContent"
 
 			for output in $outputs
 			do
 				image_base64="$(openssl base64 -A < "$IMAGE_OUTPUT_DIR/vnstat_$output.png")"
-				Encode_Image "vnstat_$output.png" "$image_base64" /tmp/mail.txt
+				Encode_Image "vnstat_$output.png" "$image_base64" "$tempEMailContent"
 			done
 
-			Encode_Text vnstat.txt "$(cat "$VNSTAT_OUTPUT_FILE")" /tmp/mail.txt
+			Encode_Text vnstat.txt "$(cat "$VNSTAT_OUTPUT_FILE")" "$tempEMailContent"
 
 			{
 				echo "--MULTIPART-RELATED-BOUNDARY--"
-				echo ""
+				echo
 				echo "--MULTIPART-MIXED-BOUNDARY--"
-			} >> /tmp/mail.txt
+			} >> "$tempEMailContent"
 		fi
 	elif [ "$emailtype" = "usage" ]
 	then
@@ -2226,25 +2255,27 @@ Generate_Email()
 		then Print_Output true "Attempting to send bandwidth usage email" "$PASS"
 		fi
 		usagePercentage="$2"
-		bwUsageStr="$3"
-		# plain text email to send #
+		bwDataUsageStr="$3"
+		## Plain Text Email ##
 		{
 			echo "From: \"$FRIENDLY_ROUTER_NAME\" <$FROM_ADDRESS>"
 			echo "To: \"$TO_NAME\" <$TO_ADDRESS>"
-			echo "Subject: $FRIENDLY_ROUTER_NAME - vnstat data usage $usagePercentage warning - $(date +"%H.%M on %F")"
+			echo "Subject: $FRIENDLY_ROUTER_NAME - vnstat data usage $usagePercentage warning $(date +'on %F')"
 			echo "Date: $(date -R)"
-			echo ""
-		} > /tmp/mail.txt
-		printf "%s" "$bwUsageStr" >> /tmp/mail.txt
+			echo
+		} > "$tempEMailContent"
+		printf "${bwDataUsageStr}\n\n" >> "$tempEMailContent"
+		{
+			echo "From the \"${FRIENDLY_ROUTER_NAME}\" router."
+			date +"$theEMailDateTimeFormat"
+		} >> "$tempEMailContent"
 	fi
 
-	#Send Email#
-	/usr/sbin/curl -s --show-error --url "$PROTOCOL://$SMTP:$PORT" \
+	## Send Email ##
+	/usr/sbin/curl -s --show-error --url "${PROTOCOL}://${SMTP}:${PORT}" \
 	--mail-from "$FROM_ADDRESS" --mail-rcpt "$TO_ADDRESS" \
-	--upload-file /tmp/mail.txt \
-	--ssl-reqd \
- 	--crlf \
-	--user "$USERNAME:$PASSWORD" $SSL_FLAG
+	--user "${USERNAME}:${PASSWORD}" \
+	--upload-file "$tempEMailContent" --ssl-reqd --crlf $SSL_FLAG
 
 	if [ $? -eq 0 ]
 	then
@@ -2252,7 +2283,7 @@ Generate_Email()
 		if [ $# -lt 4 ] || [ -z "$4" ]
 		then Print_Output true "Email sent successfully" "$PASS"
 		fi
-		rm -f /tmp/mail.txt
+		rm -f "$tempEMailContent"
 		PASSWORD=""
 		return 0
 	else
@@ -2260,7 +2291,7 @@ Generate_Email()
 		if [ $# -lt 4 ] || [ -z "$4" ]
 		then Print_Output true "Email failed to send" "$ERR"
 		fi
-		rm -f /tmp/mail.txt
+		rm -f "$tempEMailContent"
 		PASSWORD=""
 		return 1
 	fi
@@ -2301,48 +2332,48 @@ Encode_Text()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-16] ##
+## Modified by Martinski W. [2026-Mar-15] ##
 ##----------------------------------------##
 DailyEmail()
 {
+	local exitMenu  newEmailType=""
+
 	case "$1" in
 		enable)
+			exitMenu=false
 			if [ $# -lt 2 ] || [ -z "$2" ]
 			then
-				ScriptHeader
-				exitmenu="false"
-				printf "\n${BOLD}A choice of emails is available:${CLEARFORMAT}\n"
-				printf " 1.  HTML (includes images from WebUI + summary stats as attachment)\n"
-				printf " 2.  Plain text (summary stats only)\n\n"
-				printf " e.  Exit to main menu\n"
-
 				while true
 				do
-					printf "\n${BOLD}Choose an option:${CLEARFORMAT}  "
+					ScriptHeader
+					printf " ${BOLD}Please select the email format type:${CLRct}\n\n"
+					printf "  ${GRNct}1${CLRct}. HTML (includes images from WebUI + summary stats as attachment)\n"
+					printf "  ${GRNct}2${CLRct}. Plain text (summary stats only)\n\n"
+					printf "  ${GRNct}e${CLRct}. Exit to main menu\n\n"
+					printf " ${BOLD}Choose an option:${CLRct}  "
 					read -r emailtype
 					case "$emailtype" in
 						1)
-							sed -i 's/^DAILYEMAIL.*$/DAILYEMAIL=html/' "$SCRIPT_CONF"
+							newEmailType="html"
 							break
-						;;
+							;;
 						2)
-							sed -i 's/^DAILYEMAIL.*$/DAILYEMAIL=text/' "$SCRIPT_CONF"
+							newEmailType="text"
 							break
-						;;
+							;;
 						e)
-							exitmenu="true"
+							exitMenu=true
 							break
-						;;
+							;;
 						*)
-							printf "\nPlease choose a valid option\n\n"
-						;;
+							printf "\n ${ERR}Please choose a valid option [1-2]${CLRct}\n\n"
+							PressEnter
+							;;
 					esac
 				done
-				printf "\n"
-
-				if [ "$exitmenu" = "true" ]; then
-					return
-				fi
+				echo
+				[ "$exitMenu" = "true" ] && return 1
+				sed -i 's/^DAILYEMAIL.*$/DAILYEMAIL='"$newEmailType"'/' "$SCRIPT_CONF"
 			else
 				sed -i 's/^DAILYEMAIL.*$/DAILYEMAIL='"$2"'/' "$SCRIPT_CONF"
 			fi
@@ -2351,6 +2382,7 @@ DailyEmail()
 			if [ $? -eq 1 ]; then
 				DailyEmail disable
 			fi
+			return 0
 		;;
 		disable)
 			sed -i 's/^DAILYEMAIL.*$/DAILYEMAIL=none/' "$SCRIPT_CONF"
@@ -2405,20 +2437,23 @@ BandwidthAllowance()
 	esac
 }
 
+##----------------------------------------##
+## Modified by Martinski W. [2026-Mar-15] ##
+##----------------------------------------##
 AllowanceStartDay()
 {
 	case "$1" in
 		update)
 			sed -i 's/^MonthRotate .*$/MonthRotate '"$2"'/' "$VNSTAT_CONFIG"
 			/opt/etc/init.d/S33vnstat restart >/dev/null 2>&1
-			TZ=$(cat /etc/TZ)
+			TZ="$(cat /etc/TZ)"
 			export TZ
 			Reset_Allowance_Warnings force
 			Check_Bandwidth_Usage
 		;;
 		check)
-			MonthRotate=$(grep "^MonthRotate " "$VNSTAT_CONFIG" | cut -f2 -d" ")
-			echo "$MonthRotate"
+			MonthRotate="$(grep "^MonthRotate " "$VNSTAT_CONFIG" | cut -d' ' -f2)"
+			echo "${MonthRotate:=1}"
 		;;
 	esac
 }
@@ -2426,7 +2461,7 @@ AllowanceStartDay()
 ##----------------------------------------##
 ## Modified by Martinski W. [2025-Jun-16] ##
 ##----------------------------------------##
-AllowanceUnit()
+AllowanceUnits()
 {
 	case "$1" in
 		update)
@@ -2458,14 +2493,23 @@ Reset_Allowance_Warnings()
 ##-------------------------------------##
 _GetBandwidthUsageStringFromFile_()
 {
-   if [ ! -s "$SCRIPT_STORAGE_DIR/.vnstatusage" ]
-   then echo "No Data" ; return 1
-   fi
-   grep "^var usagestring =" "$SCRIPT_STORAGE_DIR/.vnstatusage" | awk -F "['\"]" '{print $2}'
+    if [ ! -s "$SCRIPT_STORAGE_DIR/.vnstatusage" ]
+    then echo "No Data" ; return 1
+    fi
+    local usageStr
+
+    usageStr="$(grep '^var usagestring =' "$SCRIPT_STORAGE_DIR/.vnstatusage" | awk -F "['\"]" '{print $2}')"
+    if [ $# -eq 0 ] || [ -z "$1" ] || \
+       ! echo "$1" | grep -qE '^TEXT$' || \
+       ! echo "$usageStr" | grep -q '.<br/>T'
+    then echo "$usageStr"
+    fi
+    usageStr="$(echo "$usageStr" | sed 's~.<br/>T~. T~')"
+    echo "$usageStr"
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-30] ##
+## Modified by Martinski W. [2026-Mar-15] ##
 ##----------------------------------------##
 Check_Bandwidth_Usage()
 {
@@ -2477,6 +2521,9 @@ Check_Bandwidth_Usage()
 	TZ="$(cat /etc/TZ)"
 	export TZ
 
+	local interface  userLimit  unitModeType  unitsKByte  unitsGByte  isVerbose=false
+	local rawBandwidthUsed  bandwidthUsed  bandwidthPercentage  bwUsageStr1  bwUsageStr2
+
 	interface="$(_GetInterfaceNameFromConfig_)"
 	if [ -z "$interface" ]
 	then
@@ -2484,31 +2531,43 @@ Check_Bandwidth_Usage()
 		return 1
 	fi
 
-	rawbandwidthused="$($VNSTAT_COMMAND -i "$interface" --json m | jq -r '.interfaces[].traffic.month[-1] | .rx + .tx')"
+	rawBandwidthUsed="$($VNSTAT_COMMAND -i "$interface" --json m | jq -r '.interfaces[].traffic.month[-1] | .rx + .tx')"
 	userLimit="$(BandwidthAllowance check)"
 
-	bandwidthused="$(echo "$rawbandwidthused" | awk '{printf("%.2f\n", $1/(1000*1000*1000));}')"
-	if AllowanceUnit check | grep -q T
+	unitModeType="$(_GetUnitModeTypeFromConfig_)"
+	if echo "$unitModeType" | grep -qE "^(0|1)$"
 	then
-		bandwidthused="$(echo "$rawbandwidthused" | awk '{printf("%.2f\n", $1/(1000*1000*1000*1000));}')"
+		unitsKByte=1024
+		unitsGByte="$oneGiByte"   # IEC Units #
+	else
+		unitsKByte=1000
+		unitsGByte="$oneGByteSI"  # SI Units #
+	fi
+
+	# GBytes #
+	bandwidthUsed="$(echo "$rawBandwidthUsed $unitsGByte" | awk '{printf("%.2f", $1/$2);}')"
+	if AllowanceUnits check | grep -q '^TB'
+	then  # TBytes #
+		bandwidthUsed="$(echo "$rawBandwidthUsed $unitsGByte $unitsKByte" | awk '{printf("%.2f", $1/($2*$3));}')"
 	fi
 
 	bandwidthPercentage=""
-	bwUsageStr=""
+	bwUsageStr1="" ;  bwUsageStr2=""
 	if [ "$(echo "$userLimit 0" | awk '{print ($1 == $2)}')" -eq 1 ]
 	then
 		bandwidthPercentage="N/A"
-		bwUsageStr="You have used ${bandwidthused}$(AllowanceUnit check) of data this cycle; the next cycle starts on day $(AllowanceStartDay check) of the month."
+		bwUsageStr1="You have used ${bandwidthUsed}$(AllowanceUnits check) of data this cycle."
+		bwUsageStr2="The next cycle starts on day $(AllowanceStartDay check) of the month."
 	else
-		bandwidthPercentage="$(echo "$bandwidthused $userLimit" | awk '{printf("%.2f\n", $1*100/$2);}')"
-		bwUsageStr="You have used ${bandwidthPercentage}% (${bandwidthused}$(AllowanceUnit check)) of your ${userLimit}$(AllowanceUnit check) cycle allowance; the next cycle starts on day $(AllowanceStartDay check) of the month."
+		bandwidthPercentage="$(echo "$bandwidthUsed $userLimit" | awk '{printf("%.2f", ($1*100)/$2);}')"
+		bwUsageStr1="You have used ${bandwidthPercentage}%% (${bandwidthUsed}$(AllowanceUnits check)) of your ${userLimit}$(AllowanceUnits check) cycle allowance."
+		bwUsageStr2="The next cycle starts on day $(AllowanceStartDay check) of the month."
 	fi
 
-	local isVerbose=false
 	if [ $# -eq 0 ] || [ -z "$1" ]
 	then
 		isVerbose=true
-		Print_Output false "$bwUsageStr" "$PASS"
+		Print_Output false "${bwUsageStr1}\n${bwUsageStr2}" "$PASS"
 	fi
 
 	if [ "$bandwidthPercentage" = "N/A" ] || \
@@ -2521,53 +2580,54 @@ Check_Bandwidth_Usage()
 	elif [ "$(echo "$bandwidthPercentage 75" | awk '{print ($1 >= $2)}')" -eq 1 ] && \
 	     [ "$(echo "$bandwidthPercentage 90" | awk '{print ($1 < $2)}')" -eq 1 ]
 	then
-		"$isVerbose" && Print_Output false "Data use is at or above 75%" "$WARN"
+		"$isVerbose" && Print_Output false "Data usage is at or above 75%%." "$WARN"
 		{
 		   echo "var usagethreshold = true;"
-		   echo "var thresholdstring = 'Data use is at or above 75%';"
+		   echo "var thresholdstring = 'Data usage is at or above 75%';"
 		} > "$SCRIPT_STORAGE_DIR/.vnstatusage"
 		if UsageEmail check && [ ! -f "$SCRIPT_STORAGE_DIR/.warning75" ]
 		then
 			if "$isVerbose"
-			then Generate_Email usage "75%" "$bwUsageStr"
-			else Generate_Email usage "75%" "$bwUsageStr" silent
+			then Generate_Email usage "75%" "${bwUsageStr1} ${bwUsageStr2}"
+			else Generate_Email usage "75%" "${bwUsageStr1} ${bwUsageStr2}" silent
 			fi
 			touch "$SCRIPT_STORAGE_DIR/.warning75"
 		fi
 	elif [ "$(echo "$bandwidthPercentage 90" | awk '{print ($1 >= $2)}')" -eq 1 ] && \
 	     [ "$(echo "$bandwidthPercentage 100" | awk '{print ($1 < $2)}')" -eq 1 ]
 	then
-		"$isVerbose" && Print_Output false "Data use is at or above 90%" "$ERR"
+		"$isVerbose" && Print_Output false "Data usage is at or above 90%%." "$ERR"
 		{
 		   echo "var usagethreshold = true;"
-		   echo "var thresholdstring = 'Data use is at or above 90%';"
+		   echo "var thresholdstring = 'Data usage is at or above 90%';"
 		} > "$SCRIPT_STORAGE_DIR/.vnstatusage"
 		if UsageEmail check && [ ! -f "$SCRIPT_STORAGE_DIR/.warning90" ]
 		then
 			if "$isVerbose"
-			then Generate_Email usage "90%" "$bwUsageStr"
-			else Generate_Email usage "90%" "$bwUsageStr" silent
+			then Generate_Email usage "90%" "${bwUsageStr1} ${bwUsageStr2}"
+			else Generate_Email usage "90%" "${bwUsageStr1} ${bwUsageStr2}" silent
 			fi
 			touch "$SCRIPT_STORAGE_DIR/.warning90"
 		fi
 	elif [ "$(echo "$bandwidthPercentage 100" | awk '{print ($1 >= $2)}')" -eq 1 ]
 	then
-		"$isVerbose" && Print_Output false "Data use is at or above 100%" "$CRIT"
+		"$isVerbose" && Print_Output false "Data usage is at or above 100%%." "$CRIT"
 		{
 		   echo "var usagethreshold = true;"
-		   echo "var thresholdstring = 'Data use is at or above 100%';"
+		   echo "var thresholdstring = 'Data usage is at or above 100%';"
 		} > "$SCRIPT_STORAGE_DIR/.vnstatusage"
 		if UsageEmail check && [ ! -f "$SCRIPT_STORAGE_DIR/.warning100" ]
 		then
 			if "$isVerbose"
-			then Generate_Email usage "100%" "$bwUsageStr"
-			else Generate_Email usage "100%" "$bwUsageStr" silent
+			then Generate_Email usage "100%" "${bwUsageStr1} ${bwUsageStr2}"
+			else Generate_Email usage "100%" "${bwUsageStr1} ${bwUsageStr2}" silent
 			fi
 			touch "$SCRIPT_STORAGE_DIR/.warning100"
 		fi
 	fi
 	{
-	   printf "var usagestring = '%s';\n" "$bwUsageStr"
+	   bwUsageStr1="$(echo "$bwUsageStr1" | sed 's/%%/%/')"
+	   printf "var usagestring = '%s';\n" "${bwUsageStr1}<br/>${bwUsageStr2}"
 	   printf "var daterefreshed = '%s';\n" "$(date +'%Y-%m-%d %T')"
 	} >> "$SCRIPT_STORAGE_DIR/.vnstatusage"
 
@@ -2661,7 +2721,7 @@ ScriptHeader()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Aug-03] ##
+## Modified by Martinski W. [2026-Mar-15] ##
 ##----------------------------------------##
 MainMenu()
 {
@@ -2669,11 +2729,14 @@ MainMenu()
 	local jffsFreeSpace  jffsFreeSpaceStr  jffsSpaceMsgTag
 
 	MENU_DAILYEMAIL="$(DailyEmail check)"
-	if [ "$MENU_DAILYEMAIL" = "html" ]; then
+	if [ "$MENU_DAILYEMAIL" = "html" ]
+	then
 		MENU_DAILYEMAIL="${PASS}ENABLED - HTML"
-	elif [ "$MENU_DAILYEMAIL" = "text" ]; then
+	elif [ "$MENU_DAILYEMAIL" = "text" ]
+	then
 		MENU_DAILYEMAIL="${PASS}ENABLED - TEXT"
-	elif [ "$MENU_DAILYEMAIL" = "none" ]; then
+	elif [ "$MENU_DAILYEMAIL" = "none" ]
+	then
 		MENU_DAILYEMAIL="${ERR}DISABLED"
 	fi
 
@@ -2683,12 +2746,12 @@ MainMenu()
 	else MENU_USAGE_ENABLED="${ERR}DISABLED"
 	fi
 
-	local bandwidthDataUnit="$(AllowanceUnit check)"
+	local bandwidthDataUnits="$(AllowanceUnits check)"
 	local bandwidthAllowance="$(BandwidthAllowance check)"
 	local MENU_BANDWIDTHALLOWANCE
 	if [ "$(echo "$bandwidthAllowance 0" | awk '{print ($1 == $2)}')" -eq 1 ]
 	then MENU_BANDWIDTHALLOWANCE="UNLIMITED"
-	else MENU_BANDWIDTHALLOWANCE="${bandwidthAllowance} ${bandwidthDataUnit}ytes"
+	else MENU_BANDWIDTHALLOWANCE="${bandwidthAllowance} ${bandwidthDataUnits}ytes"
 	fi
 
 	storageLocStr="$(ScriptStorageLocation check | tr 'a-z' 'A-Z')"
@@ -2706,39 +2769,38 @@ MainMenu()
 		jffsFreeSpaceStr="${WarnBYLWct} $jffsFreeSpace ${CLRct}  ${jffsSpaceMsgTag}${CLRct}"
 	fi
 
-	printf "WebUI for %s is available at:\n${SETTING}%s${CLEARFORMAT}\n\n" "$SCRIPT_NAME" "$(Get_WebUI_URL)"
+	printf " WebUI for %s is available at:\n" "$SCRIPT_NAME"
+	printf " ${SETTING}%s${CLRct}\n\n" "$(Get_WebUI_URL)"
 
-	printf "1.    Update stats now\n"
-	printf "      Database size: ${SETTING}%s${CLEARFORMAT}\n\n" "$(_GetFileSize_ "$(_GetVNStatDatabaseFilePath_)" HRx)"
-	printf "2.    Toggle emails for daily summary stats\n"
-	printf "      Currently: ${BOLD}$MENU_DAILYEMAIL${CLEARFORMAT}\n\n"
-	printf "3.    Toggle emails for data usage warnings\n"
-	printf "      Currently: ${BOLD}$MENU_USAGE_ENABLED${CLEARFORMAT}\n\n"
-	printf "4.    Set bandwidth allowance for data usage warnings\n"
-	printf "      Currently: ${SETTING}%s${CLEARFORMAT}\n\n" "$MENU_BANDWIDTHALLOWANCE"
-	printf "5.    Set unit for bandwidth allowance\n"
-	printf "      Currently: ${SETTING}%s${CLEARFORMAT}\n\n" "$(AllowanceUnit check)"
-	printf "6.    Set start day of cycle for bandwidth allowance\n"
-	printf "      Currently: ${SETTING}%s${CLEARFORMAT}\n\n" "Day $(AllowanceStartDay check) of month"
-	printf "b.    Check bandwidth usage now\n"
-	printf "      ${SETTING}%s${CLEARFORMAT}\n\n" "$(_GetBandwidthUsageStringFromFile_)"
-	printf "v.    Edit vnstat config\n\n"
-	printf "t.    Toggle time output mode\n"
-	printf "      Currently ${SETTING}%s${CLEARFORMAT} time values will be used for CSV exports\n\n" "$(OutputTimeMode check)"
-	printf "s.    Toggle storage location for stats and config\n"
-	printf "      Current location: ${SETTING}%s${CLEARFORMAT}\n" "$storageLocStr"
-	printf "      JFFS Available: ${jffsFreeSpaceStr}${CLEARFORMAT}\n\n"
-	printf "u.    Check for updates\n"
-	printf "uf.   Force update %s with latest version\n\n" "$SCRIPT_NAME"
-	printf "e.    Exit %s\n\n" "$SCRIPT_NAME"
-	printf "z.    Uninstall %s\n" "$SCRIPT_NAME"
-	printf "\n"
-	printf "${BOLD}##################################################${CLEARFORMAT}\n"
-	printf "\n"
+	printf "   ${GRNct}1${CLRct}. Update stats now\n"
+	printf "      Database size: ${SETTING}%s${CLRct}\n\n" "$(_GetFileSize_ "$(_GetVNStatDatabaseFilePath_)" HRx)"
+	printf "   ${GRNct}2${CLRct}. Toggle emails for daily summary stats\n"
+	printf "      Currently: ${BOLD}$MENU_DAILYEMAIL${CLRct}\n\n"
+	printf "   ${GRNct}3${CLRct}. Toggle emails for data usage warnings\n"
+	printf "      Currently: ${BOLD}$MENU_USAGE_ENABLED${CLRct}\n\n"
+	printf "   ${GRNct}4${CLRct}. Set bandwidth allowance for data usage warnings\n"
+	printf "      Currently: ${SETTING}%s${CLRct}\n\n" "$MENU_BANDWIDTHALLOWANCE"
+	printf "   ${GRNct}5${CLRct}. Set units for bandwidth allowance\n"
+	printf "      Currently: ${SETTING}%s${CLRct}\n\n" "${bandwidthDataUnits}yte"
+	printf "   ${GRNct}6${CLRct}. Set start day of cycle for bandwidth allowance\n"
+	printf "      Currently: ${SETTING}%s${CLRct}\n\n" "Day $(AllowanceStartDay check) of month"
+	printf "   ${GRNct}b${CLRct}. Check bandwidth usage now\n"
+	printf "      ${SETTING}%s${CLRct}\n\n" "$(_GetBandwidthUsageStringFromFile_ TEXT)"
+	printf "   ${GRNct}v${CLRct}. Edit vnstat config\n\n"
+	printf "   ${GRNct}t${CLRct}. Toggle time output mode\n"
+	printf "      Currently ${SETTING}%s${CLRct} time values will be used for CSV exports\n\n" "$(OutputTimeMode check)"
+	printf "   ${GRNct}s${CLRct}. Toggle storage location for stats and config\n"
+	printf "      Current location: ${SETTING}%s${CLRct}\n" "$storageLocStr"
+	printf "      JFFS Available: ${jffsFreeSpaceStr}${CLRct}\n\n"
+	printf "   ${GRNct}u${CLRct}. Check for updates\n"
+	printf "  ${GRNct}uf${CLRct}. Force update %s with latest version\n\n" "$SCRIPT_NAME"
+	printf "   ${GRNct}e${CLRct}. Exit %s\n\n" "$SCRIPT_NAME"
+	printf "   ${GRNct}z${CLRct}. Uninstall %s\n" "$SCRIPT_NAME"
+	printf "\n${BOLD}######################################################${CLRct}\n\n"
 
 	while true
 	do
-		printf "Choose an option:  "
+		printf " Choose an option:  "
 		read -r menuOption
 		case "$menuOption" in
 			1)
@@ -2756,19 +2818,25 @@ MainMenu()
 			;;
 			2)
 				printf "\n"
-				if [ "$(DailyEmail check)" != "none" ]; then
+				if [ "$(DailyEmail check)" != "none" ]
+				then
 					DailyEmail disable
-				elif [ "$(DailyEmail check)" = "none" ]; then
-					DailyEmail enable
+					PressEnter
+				elif [ "$(DailyEmail check)" = "none" ]
+				then
+					if DailyEmail enable
+					then PressEnter
+					fi
 				fi
-				PressEnter
 				break
 			;;
 			3)
 				printf "\n"
-				if UsageEmail check; then
+				if UsageEmail check
+				then
 					UsageEmail disable
-				elif ! UsageEmail check; then
+				elif ! UsageEmail check
+				then
 					UsageEmail enable
 				fi
 				PressEnter
@@ -2776,31 +2844,44 @@ MainMenu()
 			;;
 			4)
 				printf "\n"
-				if Check_Lock menu; then
-					Menu_BandwidthAllowance
+				if Check_Lock menu
+				then
+					if Menu_BandwidthAllowance
+					then PressEnter
+					fi
+				else
+					PressEnter
 				fi
-				PressEnter
 				break
 			;;
 			5)
 				printf "\n"
-				if Check_Lock menu; then
-					Menu_AllowanceUnit
+				if Check_Lock menu
+				then
+					if Menu_AllowanceUnits
+					then PressEnter
+					fi
+				else
+					PressEnter
 				fi
-				PressEnter
 				break
 			;;
 			6)
 				printf "\n"
-				if Check_Lock menu; then
-					Menu_AllowanceStartDay
+				if Check_Lock menu
+				then
+					if Menu_AllowanceStartDay
+					then PressEnter
+					fi
+				else
+					PressEnter
 				fi
-				PressEnter
 				break
 			;;
 			b)
 				printf "\n"
-				if Check_Lock menu; then
+				if Check_Lock menu
+				then
 					Check_Bandwidth_Usage
 					Clear_Lock
 				fi
@@ -2809,16 +2890,23 @@ MainMenu()
 			;;
 			v)
 				printf "\n"
-				if Check_Lock menu; then
-					Menu_Edit
+				if Check_Lock menu
+				then
+					if Menu_Edit
+					then PressEnter
+					fi
+				else
+					PressEnter
 				fi
 				break
 			;;
 			t)
 				printf "\n"
-				if [ "$(OutputTimeMode check)" = "unix" ]; then
+				if [ "$(OutputTimeMode check)" = "unix" ]
+				then
 					OutputTimeMode non-unix
-				elif [ "$(OutputTimeMode check)" = "non-unix" ]; then
+				elif [ "$(OutputTimeMode check)" = "non-unix" ]
+				then
 					OutputTimeMode unix
 				fi
 				break
@@ -2847,7 +2935,8 @@ MainMenu()
 			;;
 			u)
 				printf "\n"
-				if Check_Lock menu; then
+				if Check_Lock menu
+				then
 					Update_Version
 					Clear_Lock
 				fi
@@ -2856,7 +2945,8 @@ MainMenu()
 			;;
 			uf)
 				printf "\n"
-				if Check_Lock menu; then
+				if Check_Lock menu
+				then
 					Update_Version force
 					Clear_Lock
 				fi
@@ -2865,13 +2955,13 @@ MainMenu()
 			;;
 			e)
 				ScriptHeader
-				printf "\n${BOLD}Thanks for using %s!${CLEARFORMAT}\n\n\n" "$SCRIPT_NAME"
+				printf "\n${BOLD}Thanks for using %s!${CLRct}\n\n\n" "$SCRIPT_NAME"
 				exit 0
 			;;
 			z)
 				while true
 				do
-					printf "\n${BOLD}Are you sure you want to uninstall %s? (y/n)${CLEARFORMAT}  " "$SCRIPT_NAME"
+					printf "\n${BOLD}Are you sure you want to uninstall %s? (y/n)${CLRct}  " "$SCRIPT_NAME"
 					read -r confirm
 					case "$confirm" in
 						y|Y)
@@ -2884,7 +2974,7 @@ MainMenu()
 			;;
 			*)
 				[ -n "$menuOption" ] && \
-				printf "\n${REDct}INVALID input [$menuOption]${CLEARFORMAT}"
+				printf "\n${REDct}INVALID input [$menuOption]${CLRct}"
 				printf "\nPlease choose a valid option.\n\n"
 				PressEnter
 				break
@@ -3008,6 +3098,12 @@ Menu_Install()
 ##-------------------------------------##
 _SetParameters_()
 {
+    if [ -d "$TMPDIR" ]
+    then sqlDBLogFilePath="${TMPDIR}/$sqlDBLogFileName"
+    else sqlDBLogFilePath="/tmp/var/tmp/$sqlDBLogFileName"
+    fi
+    _SQLCheckDBLogFileSize_
+
     if [ -f "/opt/share/$SCRIPT_NAME.d/config" ]
     then SCRIPT_STORAGE_DIR="/opt/share/$SCRIPT_NAME.d"
     else SCRIPT_STORAGE_DIR="/jffs/addons/$SCRIPT_NAME.d"
@@ -3066,225 +3162,237 @@ Menu_Startup()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-16] ##
+## Modified by Martinski W. [2026-Mar-15] ##
 ##----------------------------------------##
 Menu_BandwidthAllowance()
 {
-	local exitmenu="false"
-	local bwDataUnit="$(AllowanceUnit check)"
+	local exitMenu=false  retCode=1
+	local bwDataUnits="$(AllowanceUnits check)"
 	local bwDataAllowance="$(BandwidthAllowance check)"
 	local bwDataAllowanceStr
 
 	if [ "$(echo "$bwDataAllowance 0" | awk '{print ($1 == $2)}')" -eq 1 ]
 	then bwDataAllowanceStr="UNLIMITED"
-	else bwDataAllowanceStr="${bwDataAllowance} ${bwDataUnit}ytes"
+	else bwDataAllowanceStr="${bwDataAllowance} ${bwDataUnits}ytes"
 	fi
 
 	while true
 	do
 		ScriptHeader
-		printf "${BOLD}Current monthly bandwidth allowance: ${GRNct}${bwDataAllowanceStr}${CLRct}\n\n"
-		printf "${BOLD}Enter your monthly bandwidth allowance in ${GRNct}%s${CLRct} units\n" "${bwDataUnit}yte"
-		printf "(0 = Unlimited, max. 2 decimal places):${CLEARFORMAT}  "
-		read -r allowance
+		printf " ${BOLD}Current monthly bandwidth allowance: ${GRNct}${bwDataAllowanceStr}${CLRct}\n\n"
+		printf " ${BOLD}Enter your monthly bandwidth allowance in ${GRNct}%s${CLRct} units\n" "${bwDataUnits}yte"
+		printf " (${GRNct}0${CLRct} = Unlimited, max. 2 decimal places):${CLRct}  "
+		read -r bwAllowance
 
-		if [ "$allowance" = "e" ]
+		if [ "$bwAllowance" = "e" ] || \
+		   { [ -z "$bwAllowance" ] && Validate_Bandwidth "$bwDataAllowance" ; }
 		then
-			exitmenu="exit"
-			printf "\n"
+			exitMenu=true
 			break
-		elif ! Validate_Bandwidth "$allowance"
+		elif ! Validate_Bandwidth "$bwAllowance"
 		then
-			printf "\n${ERR}Please enter a valid number (0 = unlimited, max. 2 decimal places)${CLEARFORMAT}\n"
+			printf "\n ${ERR}Please enter a valid number (0 = unlimited, max. 2 decimal places)${CLRct}\n\n"
 			PressEnter
 		else
-			bwDataAllowance="$allowance"
-			printf "\n"
+			bwDataAllowance="$bwAllowance"
 			break
 		fi
 	done
+	echo
 
-	if [ "$exitmenu" != "exit" ]; then
+	if [ "$exitMenu" != "true" ]
+	then
+		retCode=0
 		BandwidthAllowance update "$bwDataAllowance"
 	fi
-
 	Clear_Lock
+	return "$retCode"
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-16] ##
+## Modified by Martinski W. [2026-Mar-15] ##
 ##----------------------------------------##
-Menu_AllowanceUnit()
+Menu_AllowanceUnits()
 {
-	exitmenu="false"
-	allowanceunit=""
-	prevallowanceunit="$(AllowanceUnit check)"
-	unitsuffix="$(AllowanceUnit check | sed 's/T//;s/G//;')"
+	local exitMenu=false  newDataUnits=""  retCode=1
+	local oldDataUnits="$(AllowanceUnits check)"
+	unitsSuffix="$(echo "$oldDataUnits" | sed 's/T//;s/G//;')"
 
 	while true
 	do
 		ScriptHeader
-		printf "\n${BOLD}Please select the unit to use for bandwidth allowance:${CLEARFORMAT}\n"
-		printf " 1.  G%s\n" "$unitsuffix"
-		printf " 2.  T%s\n\n" "$unitsuffix"
-		printf " Choose an option:  "
-		read -r unitchoice
-		case "$unitchoice" in
-			1)
-				allowanceunit="G"
-				printf "\n"
-				break
-			;;
-			2)
-				allowanceunit="T"
-				printf "\n"
-				break
-			;;
-			e)
-				exitmenu="exit"
-				printf "\n"
-				break
-			;;
-			*)
-				printf "\n${ERR}Please choose a valid option [1-2]${CLEARFORMAT}\n"
-				PressEnter
-			;;
-		esac
-	done
+		printf " ${BOLD}Current units for bandwidth allowance: ${GRNct}${oldDataUnits}yte${CLRct}\n\n"
+		printf " ${BOLD}Please select the units to use for bandwidth allowance:${CLRct}\n\n"
+		printf "  ${GRNct}1${CLRct}. GByte\n"
+		printf "  ${GRNct}2${CLRct}. TByte\n\n"
+		printf "  ${GRNct}e${CLRct}. Exit to main menu\n\n"
+		printf " ${BOLD}Choose an option:${CLRct}  "
+		read -r unitsChoice
 
-	if [ "$exitmenu" != "exit" ]
-	then
-		AllowanceUnit update "$allowanceunit"
-
-		allowanceunit="$(AllowanceUnit check)"
-		if [ "$prevallowanceunit" != "$allowanceunit" ]
+		if [ "$unitsChoice" = "e" ] || \
+		   { [ -z "$unitsChoice" ] && \
+		     echo "$oldDataUnits" | grep -qE '^(GB|TB)$' ; }
 		then
-			scalefactor=1000
+			exitMenu=true
+			break
+		elif ! echo "$unitsChoice" | grep -qE '^(1|2)$'
+		then
+			printf "\n ${ERR}Please choose a valid option [1-2]${CLRct}\n\n"
+			PressEnter
+		else
+			case "$unitsChoice" in
+				1) newDataUnits="G" ;;
+				2) newDataUnits="T" ;;
+			esac
+			break
+		fi
+	done
+	echo
 
-			scaletype="none"
-			if [ "$prevallowanceunit" != "$(AllowanceUnit check)" ]
+	if [ "$exitMenu" != "true" ]
+	then
+		retCode=0
+		AllowanceUnits update "$newDataUnits"
+
+		newDataUnits="$(AllowanceUnits check)"
+		if [ "$oldDataUnits" != "$newDataUnits" ]
+		then
+			scaleFactor=1000 ; scaleType="none"
+			if [ "$oldDataUnits" != "$(AllowanceUnits check)" ]
 			then
-				if echo "$prevallowanceunit" | grep -q G && AllowanceUnit check | grep -q T; then
-					scaletype="divide"
-				elif echo "$prevallowanceunit" | grep -q T && AllowanceUnit check | grep -q G; then
-					scaletype="multiply"
+				if echo "$oldDataUnits" | grep -q '^GB' && \
+				   AllowanceUnits check | grep -q '^TB'
+				then
+					scaleType="divide"
+				elif echo "$oldDataUnits" | grep -q '^TB' && \
+				     AllowanceUnits check | grep -q '^GB'
+				then
+					scaleType="multiply"
 				fi
 			fi
 
-			if [ "$scaletype" != "none" ]
+			if [ "$scaleType" != "none" ]
 			then
 				bandwidthAllowance="$(BandwidthAllowance check)"
-				if [ "$scaletype" = "multiply" ]
+				if [ "$scaleType" = "multiply" ]
 				then
-					bandwidthAllowance="$(echo "$(BandwidthAllowance check) $scalefactor" | awk '{printf("%.2f\n", $1*$2);}')"
-				elif [ "$scaletype" = "divide" ]
+					bandwidthAllowance="$(echo "$(BandwidthAllowance check) $scaleFactor" | awk '{printf("%.2f", $1*$2);}')"
+				elif [ "$scaleType" = "divide" ]
 				then
-					bandwidthAllowance="$(echo "$(BandwidthAllowance check) $scalefactor" | awk '{printf("%.2f\n", $1/$2);}')"
+					bandwidthAllowance="$(echo "$(BandwidthAllowance check) $scaleFactor" | awk '{printf("%.2f", $1/$2);}')"
 				fi
 				BandwidthAllowance update "$bandwidthAllowance" noreset
 			fi
 		fi
 	fi
-
 	Clear_Lock
+	return "$retCode"
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Jun-16] ##
+## Modified by Martinski W. [2026-Mar-15] ##
 ##----------------------------------------##
 Menu_AllowanceStartDay()
 {
-	exitmenu="false"
-	allowancestartday=""
+	local exitMenu=false  allowanceStartDay=""
+	local newStartDay  oldStartDay  retCode=1
+
+	oldStartDay="$(AllowanceStartDay check)"
 
 	while true
 	do
 		ScriptHeader
-		printf "\n${BOLD}Please enter day of month that your bandwidth allowance\nresets [1-28]:${CLEARFORMAT}  "
-		read -r startday
+		printf " ${BOLD}Current day of month to reset bandwidth allowance: ${GRNct}${oldStartDay}${CLRct}\n\n"
+		printf " ${BOLD}Please enter the day of the month when your bandwidth"
+		printf "\n allowance will be reset every month [${GRNct}1${CLRct}-${GRNct}28${CLRct}]:  "
+		read -r newStartDay
 
-		if [ "$startday" = "e" ]
+		if [ "$newStartDay" = "e" ] || \
+		   { [ -z "$newStartDay" ] && \
+		     [ "$oldStartDay" -gt 0 ] && [ "$oldStartDay" -lt 29 ] ; }
 		then
-			exitmenu="exit"
-			printf "\n"
+			exitMenu=true
 			break
-		elif ! Validate_Number "$startday"
+		elif ! Validate_Number "$newStartDay"
 		then
-			printf "\n${ERR}Please enter a valid number [1-28]${CLEARFORMAT}\n"
+			printf "\n ${ERR}Please enter a valid number [1-28]${CLRct}\n\n"
+			PressEnter
+		elif [ "$newStartDay" -lt 1 ] || [ "$newStartDay" -gt 28 ]
+		then
+			printf "\n ${ERR}Please enter a number between 1 and 28${CLRct}\n\n"
 			PressEnter
 		else
-			if [ "$startday" -lt 1 ] || [ "$startday" -gt 28 ]
-			then
-				printf "\n${ERR}Please enter a number between 1 and 28${CLEARFORMAT}\n"
-				PressEnter
-			else
-				allowancestartday="$startday"
-				printf "\n"
-				break
-			fi
+			allowanceStartDay="$newStartDay"
+			break
 		fi
 	done
+	echo
 
-	if [ "$exitmenu" != "exit" ]; then
-		AllowanceStartDay update "$allowancestartday"
+	if [ "$exitMenu" != "true" ]
+	then
+		retCode=0
+		AllowanceStartDay update "$allowanceStartDay"
 	fi
-
 	Clear_Lock
+	return "$retCode"
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Apr-28] ##
+## Modified by Martinski W. [2026-Mar-15] ##
 ##----------------------------------------##
 Menu_Edit()
 {
-	texteditor=""
-	exitmenu="false"
-
-	printf "\n${BOLD}A choice of text editors is available:${CLEARFORMAT}\n"
-	printf " 1.  nano (recommended for beginners)\n"
-	printf " 2.  vi\n\n"
-	printf " e.  Exit to main menu\n"
+	local textEditor=""  exitMenu=false  retCode=1
 
 	while true
 	do
-		printf "\n${BOLD}Choose an option:${CLEARFORMAT}  "
-		read -r editor
-		case "$editor" in
+		ScriptHeader
+		printf " ${BOLD}Please select a text editor:${CLRct}\n\n"
+		printf "  ${GRNct}1${CLRct}. nano (recommended for beginners)\n"
+		printf "  ${GRNct}2${CLRct}. vi\n\n"
+		printf "  ${GRNct}e${CLRct}. Exit to main menu\n\n"
+		printf " ${BOLD}Choose an option:${CLRct}  "
+		read -r editorChoice
+
+		case "$editorChoice" in
 			1)
-				texteditor="nano -K"
+				textEditor="nano -K"
 				break
-			;;
+				;;
 			2)
-				texteditor="vi"
+				textEditor="vi"
 				break
-			;;
+				;;
 			e)
-				exitmenu="true"
+				exitMenu=true
 				break
-			;;
+				;;
 			*)
-				printf "\nPlease choose a valid option\n\n"
-			;;
+				printf "\n ${ERR}Please choose a valid option [1-2]${CLRct}\n\n"
+				PressEnter
+				;;
 		esac
 	done
+	echo
 
-	if [ "$exitmenu" != "true" ]
+	if [ "$exitMenu" != "true" ]
 	then
+		retCode=0
 		oldmd5="$(md5sum "$VNSTAT_CONFIG" | awk '{print $1}')"
-		$texteditor "$VNSTAT_CONFIG"
+		$textEditor "$VNSTAT_CONFIG"
 		newmd5="$(md5sum "$VNSTAT_CONFIG" | awk '{print $1}')"
 		if [ "$oldmd5" != "$newmd5" ]
 		then
 			/opt/etc/init.d/S33vnstat restart >/dev/null 2>&1
-			TZ=$(cat /etc/TZ)
+			TZ="$(cat /etc/TZ)"
 			export TZ
 			Check_Bandwidth_Usage silent
 			Clear_Lock
-			printf "\n"
-			PressEnter
+			echo ; PressEnter
 		fi
 	fi
 	Clear_Lock
+	return "$retCode"
 }
 
 ##-------------------------------------##
@@ -3557,12 +3665,6 @@ TMPDIR="$SHARE_TEMP_DIR"
 SQLITE_TMPDIR="$TMPDIR"
 export SQLITE_TMPDIR TMPDIR
 
-if [ -d "$TMPDIR" ]
-then sqlDBLogFilePath="${TMPDIR}/$sqlDBLogFileName"
-else sqlDBLogFilePath="/tmp/var/tmp/$sqlDBLogFileName"
-fi
-_SQLCheckDBLogFileSize_
-
 _SetParameters_
 JFFS_LowFreeSpaceStatus="OK"
 updateJFFS_SpaceInfo=false
@@ -3642,7 +3744,8 @@ case "$1" in
 		Generate_Images silent
 		Generate_Stats silent
 		Check_Bandwidth_Usage silent
-		if [ "$(DailyEmail check)" != "none" ]; then
+		if [ "$(DailyEmail check)" != "none" ]
+		then
 			Generate_Email daily
 		fi
 		exit 0
