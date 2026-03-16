@@ -4,8 +4,11 @@ Note: R1 runs on all supported architectures (ARM, AARCH, MIPS). R2 runs only on
 
 # Version R2 (based on vnStat 2.x) #
 
-### v2.0.12 - 2026-Feb-18 ###
+### v2.0.12 - 2026-Mar-15 ###
   * NEW: Added code to support automatic add-on updates from AMTM.
+  * IMPROVED: Modified format of date parameters used in email and reports to follow the ISO-8601 international standard to maintain consistency and avoid ambiguity.
+  * IMPROVED: Improvements in CLI menu options formatting and handling.
+
 
 ### v2.0.11 - 2025-Nov-16 ###
   * IMPROVED: Modified code to make sure we get correct parameters when changing settings from the WebUI.
