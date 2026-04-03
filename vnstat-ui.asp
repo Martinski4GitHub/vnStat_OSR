@@ -239,7 +239,7 @@ var maxNoCharts=12,currentNoCharts=0,ShowTrendlines=GetCookie("ShowTrendlines","
 <td colspan="2" align="center" style="padding: 0px;">
 <div id="img_Monthly" class="vnstat"
     style="background-image:url('/ext/dn-vnstat/images/.vnstat_m.htm'); visibility:visible;">
-<img style="visibility:hidden;" src="/ext/dn-vnstat/images/vnstat_m.png" alt="Monthly"/>
+<img style="content-visibility:auto;" src="/ext/dn-vnstat/images/vnstat_m.png" alt="Monthly"/>
 </div>
 </td>
 </tr>
@@ -252,7 +252,7 @@ var maxNoCharts=12,currentNoCharts=0,ShowTrendlines=GetCookie("ShowTrendlines","
 <tr><td colspan="2" align="center" style="padding: 0px;">
 <div id="img_Daily" class="vnstat"
     style="background-image:url('/ext/dn-vnstat/images/.vnstat_d.htm'); visibility:visible;">
-<img style="visibility:hidden;" src="/ext/dn-vnstat/images/vnstat_d.png" alt="Daily"/>
+<img style="content-visibility:auto;" src="/ext/dn-vnstat/images/vnstat_d.png" alt="Daily"/>
 </div>
 </td></tr>
 </table>
@@ -264,7 +264,7 @@ var maxNoCharts=12,currentNoCharts=0,ShowTrendlines=GetCookie("ShowTrendlines","
 <tr><td colspan="2" align="center" style="padding: 0px;">
 <div id="img_Hourly" class="vnstat"
     style="background-image:url('/ext/dn-vnstat/images/.vnstat_hg.htm'); visibility:visible;">
-<img style="visibility:hidden;" src="/ext/dn-vnstat/images/vnstat_hg.png" alt="Hourly" />
+<img style="content-visibility:auto;" src="/ext/dn-vnstat/images/vnstat_hg.png" alt="Hourly" />
 </div>
 </td></tr>
 </table>
@@ -403,7 +403,7 @@ var maxNoCharts=12,currentNoCharts=0,ShowTrendlines=GetCookie("ShowTrendlines","
 <tr><td colspan="2" align="center" style="padding: 0px;">
 <div id="img_Summary" class="vnstat"
     style="background-image:url('/ext/dn-vnstat/images/.vnstat_s.htm'); visibility:visible;">
-<img style="visibility:hidden;" src="/ext/dn-vnstat/images/vnstat_s.png" alt="Summary" />
+<img style="content-visibility:auto;" src="/ext/dn-vnstat/images/vnstat_s.png" alt="Summary" />
 </div>
 </td></tr>
 </table>
@@ -415,7 +415,7 @@ var maxNoCharts=12,currentNoCharts=0,ShowTrendlines=GetCookie("ShowTrendlines","
 <tr><td colspan="2" align="center" style="padding: 0px;">
 <div id="img_Top10" class="vnstat"
     style="background-image:url('/ext/dn-vnstat/images/.vnstat_t.htm'); visibility:visible;">
-<img style="visibility:hidden;" src="/ext/dn-vnstat/images/vnstat_t.png" alt="Top10" />
+<img style="content-visibility:auto;" src="/ext/dn-vnstat/images/vnstat_t.png" alt="Top10" />
 </div>
 </td></tr>
 </table>
