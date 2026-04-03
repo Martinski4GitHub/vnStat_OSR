@@ -11,7 +11,7 @@
 ## Forked from https://github.com/de-vnull/vnstat-on-merlin ##
 ##                                                          ##
 ##############################################################
-# Last Modified: 2026-Mar-15
+# Last Modified: 2026-Apr-03
 #-------------------------------------------------------------
 
 ########         Shellcheck directives     ######
@@ -35,8 +35,8 @@
 
 ### Start of script variables ###
 readonly SCRIPT_NAME="dn-vnstat"
-readonly SCRIPT_VERSION="v2.0.12"
-readonly SCRIPT_VERSTAG="26031521"
+readonly SCRIPT_VERSION="v2.0.13"
+readonly SCRIPT_VERSTAG="26040300"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/vnstat-on-merlin/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
@@ -67,6 +67,11 @@ readonly versionMod_TAG="$SCRIPT_VERSION on $ROUTER_MODEL"
 
 # To support automatic script updates from AMTM #
 doScriptUpdateFromAMTM=true
+
+# For CRON job schedules #
+readonly defSUMMARY_Hour=23
+readonly defSUMMARY_Mins=59
+readonly defGENERTE_Mins="*/5"
 
 readonly _12Hours=43200
 readonly _24Hours=86400
@@ -913,6 +918,9 @@ Auto_Startup()
 	esac
 }
 
+##----------------------------------------##
+## Modified by Martinski W. [2026-Apr-04] ##
+##----------------------------------------##
 Auto_Cron()
 {
 	case $1 in
@@ -921,40 +929,54 @@ Auto_Cron()
 			if [ "$STARTUPLINECOUNT" -gt 0 ]; then
 				cru d "${SCRIPT_NAME}_images"
 			fi
-
 			STARTUPLINECOUNT="$(cru l | grep -c "${SCRIPT_NAME}_stats")"
 			if [ "$STARTUPLINECOUNT" -gt 0 ]; then
 				cru d "${SCRIPT_NAME}_stats"
 			fi
 
 			STARTUPLINECOUNT="$(cru l | grep -c "${SCRIPT_NAME}_generate")"
-			if [ "$STARTUPLINECOUNT" -eq 0 ]; then
-				cru a "${SCRIPT_NAME}_generate" "*/5 * * * * /jffs/scripts/$SCRIPT_NAME generate"
+			STARTUPLINECOUNTEX="$(cru l | grep "${SCRIPT_NAME}_generate" | grep -c "^$defGENERTE_Mins [*] [*] [*]")"
+			if [ "$STARTUPLINECOUNT" -gt 0 ] && [ "$STARTUPLINECOUNTEX" -eq 0 ]
+			then
+				cru d "${SCRIPT_NAME}_generate"
+				STARTUPLINECOUNT="$(cru l | grep -c "${SCRIPT_NAME}_generate")"
+			fi
+			if [ "$STARTUPLINECOUNT" -eq 0 ]
+			then
+				cru a "${SCRIPT_NAME}_generate" "$defGENERTE_Mins * * * * /jffs/scripts/$SCRIPT_NAME generate"
 			fi
 
 			STARTUPLINECOUNT="$(cru l | grep -c "${SCRIPT_NAME}_summary")"
-			if [ "$STARTUPLINECOUNT" -eq 0 ]; then
-				cru a "${SCRIPT_NAME}_summary" "59 23 * * * /jffs/scripts/$SCRIPT_NAME summary"
+			STARTUPLINECOUNTEX="$(cru l | grep "${SCRIPT_NAME}_summary" | grep -c "^$defSUMMARY_Mins $defSUMMARY_Hour [*] [*]")"
+			if [ "$STARTUPLINECOUNT" -gt 0 ] && [ "$STARTUPLINECOUNTEX" -eq 0 ]
+			then
+				cru d "${SCRIPT_NAME}_summary"
+				STARTUPLINECOUNT="$(cru l | grep -c "${SCRIPT_NAME}_summary")"
+			fi
+			if [ "$STARTUPLINECOUNT" -eq 0 ]
+			then
+				cru a "${SCRIPT_NAME}_summary" "$defSUMMARY_Mins $defSUMMARY_Hour * * * /jffs/scripts/$SCRIPT_NAME summary"
 			fi
 		;;
 		delete)
 			STARTUPLINECOUNT="$(cru l | grep -c "${SCRIPT_NAME}_images")"
-			if [ "$STARTUPLINECOUNT" -gt 0 ]; then
+			if [ "$STARTUPLINECOUNT" -gt 0 ]
+			then
 				cru d "${SCRIPT_NAME}_images"
 			fi
-
 			STARTUPLINECOUNT="$(cru l | grep -c "${SCRIPT_NAME}_stats")"
-			if [ "$STARTUPLINECOUNT" -gt 0 ]; then
+			if [ "$STARTUPLINECOUNT" -gt 0 ]
+			then
 				cru d "${SCRIPT_NAME}_stats"
 			fi
-
 			STARTUPLINECOUNT="$(cru l | grep -c "${SCRIPT_NAME}_generate")"
-			if [ "$STARTUPLINECOUNT" -gt 0 ]; then
+			if [ "$STARTUPLINECOUNT" -gt 0 ]
+			then
 				cru d "${SCRIPT_NAME}_generate"
 			fi
-
 			STARTUPLINECOUNT="$(cru l | grep -c "${SCRIPT_NAME}_summary")"
-			if [ "$STARTUPLINECOUNT" -gt 0 ]; then
+			if [ "$STARTUPLINECOUNT" -gt 0 ]
+			then
 				cru d "${SCRIPT_NAME}_summary"
 			fi
 		;;
@@ -2564,9 +2586,10 @@ Check_Bandwidth_Usage()
 		bwUsageStr2="The next cycle starts on day $(AllowanceStartDay check) of the month."
 	fi
 
+	local doSilent="silent"
 	if [ $# -eq 0 ] || [ -z "$1" ]
 	then
-		isVerbose=true
+		isVerbose=true ; doSilent=""
 		Print_Output false "${bwUsageStr1}\n${bwUsageStr2}" "$PASS"
 	fi
 
@@ -2587,10 +2610,7 @@ Check_Bandwidth_Usage()
 		} > "$SCRIPT_STORAGE_DIR/.vnstatusage"
 		if UsageEmail check && [ ! -f "$SCRIPT_STORAGE_DIR/.warning75" ]
 		then
-			if "$isVerbose"
-			then Generate_Email usage "75%" "${bwUsageStr1} ${bwUsageStr2}"
-			else Generate_Email usage "75%" "${bwUsageStr1} ${bwUsageStr2}" silent
-			fi
+			Generate_Email usage "75%" "${bwUsageStr1} ${bwUsageStr2}" "$doSilent"
 			touch "$SCRIPT_STORAGE_DIR/.warning75"
 		fi
 	elif [ "$(echo "$bandwidthPercentage 90" | awk '{print ($1 >= $2)}')" -eq 1 ] && \
@@ -2603,10 +2623,7 @@ Check_Bandwidth_Usage()
 		} > "$SCRIPT_STORAGE_DIR/.vnstatusage"
 		if UsageEmail check && [ ! -f "$SCRIPT_STORAGE_DIR/.warning90" ]
 		then
-			if "$isVerbose"
-			then Generate_Email usage "90%" "${bwUsageStr1} ${bwUsageStr2}"
-			else Generate_Email usage "90%" "${bwUsageStr1} ${bwUsageStr2}" silent
-			fi
+			Generate_Email usage "90%" "${bwUsageStr1} ${bwUsageStr2}" "$doSilent"
 			touch "$SCRIPT_STORAGE_DIR/.warning90"
 		fi
 	elif [ "$(echo "$bandwidthPercentage 100" | awk '{print ($1 >= $2)}')" -eq 1 ]
@@ -2618,10 +2635,7 @@ Check_Bandwidth_Usage()
 		} > "$SCRIPT_STORAGE_DIR/.vnstatusage"
 		if UsageEmail check && [ ! -f "$SCRIPT_STORAGE_DIR/.warning100" ]
 		then
-			if "$isVerbose"
-			then Generate_Email usage "100%" "${bwUsageStr1} ${bwUsageStr2}"
-			else Generate_Email usage "100%" "${bwUsageStr1} ${bwUsageStr2}" silent
-			fi
+			Generate_Email usage "100%" "${bwUsageStr1} ${bwUsageStr2}" "$doSilent"
 			touch "$SCRIPT_STORAGE_DIR/.warning100"
 		fi
 	fi
