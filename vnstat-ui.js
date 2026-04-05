@@ -1,5 +1,5 @@
 /**----------------------------**/
-/** Last Modified: 2026-Apr-03 **/
+/** Last Modified: 2026-Apr-04 **/
 /**----------------------------**/
 
 var maxNoCharts = 12;
@@ -69,39 +69,56 @@ $(document).keyup(function(e){
 function UsageHint()
 {
 	var tag_name= document.getElementsByTagName('a');
-	for(var i = 0; i<tag_name.length; i++){
+	for (var i = 0; i<tag_name.length; i++)
+	{
 		tag_name[i].onmouseout=nd;
 	}
 	hinttext=thresholdstring;
 	return overlib(hinttext,0,0);
 }
 
-function Validate_AllowanceStartDay(forminput)
+/**----------------------------------------**/
+/** Modified by Martinski W. [2026-Apr-04] **/
+/**----------------------------------------**/
+function Validate_AllowanceStartDay(forminput, doParseInt)
 {
 	var inputname = forminput.name;
-	var inputvalue = forminput.value*1;
+	var inputvalue = (forminput.value * 1);
 	
-	if(inputvalue > 28 || inputvalue < 1){
+	if (forminput.value.length == 0 || inputvalue === NaN ||
+	    inputvalue < 1 || inputvalue > 28)
+	{
 		$(forminput).addClass('invalid');
 		return false;
 	}
-	else{
+	else
+	{
 		$(forminput).removeClass('invalid');
+		if (doParseInt)
+		{ forminput.value = parseInt(forminput.value); }
 		return true;
 	}
 }
 
-function Validate_DataAllowance(forminput)
+/**----------------------------------------**/
+/** Modified by Martinski W. [2026-Apr-04] **/
+/**----------------------------------------**/
+function Validate_DataAllowance(forminput, doParseFloat)
 {
 	var inputname = forminput.name;
-	var inputvalue = forminput.value*1;
+	var inputvalue = (forminput.value * 1);
 	
-	if(inputvalue < 0 || forminput.value.length == 0 || inputvalue == NaN || forminput.value == '.'){
+	if (forminput.value.length === 0 || inputvalue === NaN ||
+	    forminput.value === '.' || inputvalue < 0)
+	{
 		$(forminput).addClass('invalid');
 		return false;
 	}
-	else{
+	else
+	{
 		$(forminput).removeClass('invalid');
+		if (doParseFloat)
+		{ forminput.value = parseFloat(forminput.value).toFixed(2); }
 		return true;
 	}
 }
@@ -109,38 +126,45 @@ function Validate_DataAllowance(forminput)
 function Format_DataAllowance(forminput)
 {
 	var inputname = forminput.name;
-	var inputvalue = forminput.value*1;
+	var inputvalue = (forminput.value * 1);
 	
-	if(inputvalue < 0 || forminput.value.length == 0 || inputvalue == NaN || forminput.value == '.'){
+	if (forminput.value.length === 0 || inputvalue === NaN ||
+	    forminput.value === '.' || inputvalue < 0)
+	{
 		return false;
 	}
-	else{
-		forminput.value=parseFloat(forminput.value).toFixed(2);
+	else
+	{
+		forminput.value = parseFloat(forminput.value).toFixed(2);
 		return true;
 	}
 }
 
 function ScaleDataAllowance()
 {
-	if(document.form.dnvnstat_allowanceunit.value == 'T'){
-		document.form.dnvnstat_dataallowance.value = document.form.dnvnstat_dataallowance.value*1 / 1000;
+	if (document.form.dnvnstat_allowanceunit.value === 'T')
+	{
+		document.form.dnvnstat_dataallowance.value = ((document.form.dnvnstat_dataallowance.value * 1) / 1000);
 	}
-	else if(document.form.dnvnstat_allowanceunit.value == 'G'){
-		document.form.dnvnstat_dataallowance.value = document.form.dnvnstat_dataallowance.value*1 * 1000;
+	else if (document.form.dnvnstat_allowanceunit.value === 'G')
+	{
+		document.form.dnvnstat_dataallowance.value = (document.form.dnvnstat_dataallowance.value * 1 * 1000);
 	}
 	Format_DataAllowance(document.form.dnvnstat_dataallowance);
 }
 
 function GetCookie(cookiename,returntype)
 {
-	if(cookie.get('cookie_'+cookiename) != null){
+	if (cookie.get('cookie_'+cookiename) != null)
+	{
 		return cookie.get('cookie_'+cookiename);
 	}
-	else{
-		if(returntype == 'string'){
+	else
+	{
+		if (returntype == 'string'){
 			return '';
 		}
-		else if(returntype == 'number'){
+		else if (returntype == 'number'){
 			return 0;
 		}
 	}
@@ -157,7 +181,8 @@ function ScriptUpdateLayout()
 	var serverver = GetVersionNumber('server');
 	$('#dnvnstat_version_local').text(localver);
 	
-	if(localver != serverver && serverver != 'N/A'){
+	if (localver != serverver && serverver != 'N/A')
+	{
 		$('#dnvnstat_version_server').text('Updated version available: '+serverver);
 		showhide('btnChkUpdate',false);
 		showhide('dnvnstat_version_server',true);
@@ -174,18 +199,22 @@ function update_status()
 			setTimeout(update_status,1000);
 		},
 		success: function(){
-			if(updatestatus == 'InProgress'){
+			if (updatestatus == 'InProgress')
+			{
 				setTimeout(update_status,1000);
 			}
-			else{
+			else
+			{
 				document.getElementById('imgChkUpdate').style.display = 'none';
 				showhide('dnvnstat_version_server',true);
-				if(updatestatus != 'None'){
+				if (updatestatus != 'None')
+				{
 					$('#dnvnstat_version_server').text('Updated version available: '+updatestatus);
 					showhide('btnChkUpdate',false);
 					showhide('btnDoUpdate',true);
 				}
-				else{
+				else
+				{
 					$('#dnvnstat_version_server').text('No update available');
 					showhide('btnChkUpdate',true);
 					showhide('btnDoUpdate',false);
@@ -215,19 +244,44 @@ function DoUpdate()
 function GetVersionNumber(versiontype)
 {
 	var versionprop;
-	if (versiontype == 'local'){
+	if (versiontype === 'local')
+	{
 		versionprop = custom_settings.dnvnstat_version_local;
 	}
-	else if(versiontype == 'server'){
+	else if (versiontype === 'server')
+	{
 		versionprop = custom_settings.dnvnstat_version_server;
 	}
-	
-	if (typeof versionprop == 'undefined' || versionprop == null){
+	if (typeof versionprop === 'undefined' || versionprop === null)
+	{
 		return 'N/A';
 	}
-	else{
+	else
+	{
 		return versionprop;
 	}
+}
+
+/**-------------------------------------**/
+/** Added by Martinski W. [2026-Apr-04] **/
+/**-------------------------------------**/
+function ValidateSettings()
+{
+	var validationfailed = false;
+
+	if (!Validate_DataAllowance (document.form.dnvnstat_dataallowance,true))
+	{ validationfailed = true; }
+
+	if (!Validate_AllowanceStartDay (document.form.dnvnstat_monthrotate,true))
+	{ validationfailed = true; }
+
+	if (validationfailed)
+	{
+		alert('**ERROR**\nValidation for some fields failed.\nPlease correct invalid values and try again.');
+		return false;
+	}
+	else
+	{ return true; }
 }
 
 $.fn.serializeObject = function(){
@@ -246,8 +300,13 @@ $.fn.serializeObject = function(){
 	return o;
 };
 
+/**----------------------------------------**/
+/** Modified by Martinski W. [2026-Apr-04] **/
+/**----------------------------------------**/
 function SaveConfig()
 {
+	if (!ValidateSettings()) { return 1 ;}
+
 	document.getElementById('amng_custom').value = JSON.stringify($('form').serializeObject());
 	document.form.action_script.value = 'start_dn-vnstatconfig';
 	document.form.action_wait.value = 15;
