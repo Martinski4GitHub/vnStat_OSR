@@ -11,7 +11,7 @@
 ## Forked from https://github.com/de-vnull/vnstat-on-merlin ##
 ##                                                          ##
 ##############################################################
-# Last Modified: 2026-Apr-03
+# Last Modified: 2026-Apr-05
 #-------------------------------------------------------------
 
 ########         Shellcheck directives     ######
@@ -36,7 +36,7 @@
 ### Start of script variables ###
 readonly SCRIPT_NAME="dn-vnstat"
 readonly SCRIPT_VERSION="v2.0.13"
-readonly SCRIPT_VERSTAG="26040303"
+readonly SCRIPT_VERSTAG="26040501"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/vnstat-on-merlin/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
@@ -749,11 +749,11 @@ Conf_Exists()
 			sed -i 's/^UpdateInterval.*$/UpdateInterval 30/' "$VNSTAT_CONFIG"
 			restartvnstat=true
 		fi
-		if ! grep -q "^UnitMode 2" "$VNSTAT_CONFIG"; then
+		if ! grep -qE "^UnitMode [0-2]$" "$VNSTAT_CONFIG"; then
 			sed -i 's/^UnitMode.*$/UnitMode 2/' "$VNSTAT_CONFIG"
 			restartvnstat=true
 		fi
-		if ! grep -q "^RateUnitMode 1" "$VNSTAT_CONFIG"; then
+		if ! grep -qE "^RateUnitMode [0-1]$" "$VNSTAT_CONFIG"; then
 			sed -i 's/^RateUnitMode.*$/RateUnitMode 1/' "$VNSTAT_CONFIG"
 			restartvnstat=true
 		fi
@@ -2523,11 +2523,37 @@ _GetBandwidthUsageStringFromFile_()
     usageStr="$(grep '^var usagestring =' "$SCRIPT_STORAGE_DIR/.vnstatusage" | awk -F "['\"]" '{print $2}')"
     if [ $# -eq 0 ] || [ -z "$1" ] || \
        ! echo "$1" | grep -qE '^TEXT$' || \
-       ! echo "$usageStr" | grep -q '.<br/>T'
-    then echo "$usageStr"
+       ! echo "$usageStr" | grep -q '[.]<br/>T'
+    then
+        echo "$usageStr" ; return 0
     fi
     usageStr="$(echo "$usageStr" | sed 's~.<br/>T~. T~')"
     echo "$usageStr"
+}
+
+##-------------------------------------##
+## Added by Martinski W. [2026-Apr-04] ##
+##-------------------------------------##
+_GetOrdinalNumStr_()
+{
+	if [ $# -eq 0 ] || [ -z "$1" ] || \
+	   ! echo "$1" | grep -qE "^[1-9][0-9]*$"
+	then
+		echo "$@" ; return 1
+	fi
+	if echo "$1" | grep -qE "^(11|12|13)$" || \
+       ! echo "$1" | grep -qE "^[1-9]*[1-3]$"
+	then
+		echo "${1}th" ; return 0
+	fi
+	if echo "$1" | grep -qE "^[1-9]*[1]$"
+	then echo "${1}st"
+	elif echo "$1" | grep -qE "^[1-9]*[2]$"
+	then echo "${1}nd"
+	elif echo "$1" | grep -qE "^[1-9]*[3]$"
+	then echo "${1}rd"
+	fi
+	return 0
 }
 
 ##----------------------------------------##
@@ -2543,8 +2569,9 @@ Check_Bandwidth_Usage()
 	TZ="$(cat /etc/TZ)"
 	export TZ
 
-	local interface  userLimit  unitModeType  unitsKByte  unitsGByte  isVerbose=false
+	local interface  userLimit  isVerbose=false  doSilent="silent"
 	local rawBandwidthUsed  bandwidthUsed  bandwidthPercentage  bwUsageStr1  bwUsageStr2
+	local unitModeType  unitsTagStr  unitsKByte  unitsGByte  theStartDayNum  theStartDayStr
 
 	interface="$(_GetInterfaceNameFromConfig_)"
 	if [ -z "$interface" ]
@@ -2556,14 +2583,21 @@ Check_Bandwidth_Usage()
 	rawBandwidthUsed="$($VNSTAT_COMMAND -i "$interface" --json m | jq -r '.interfaces[].traffic.month[-1] | .rx + .tx')"
 	userLimit="$(BandwidthAllowance check)"
 
+    unitsTagStr="$(AllowanceUnits check)"
 	unitModeType="$(_GetUnitModeTypeFromConfig_)"
 	if echo "$unitModeType" | grep -qE "^(0|1)$"
 	then
+		#IEC units: [MiB|GiB|TiB]#
 		unitsKByte=1024
-		unitsGByte="$oneGiByte"   # IEC Units #
+		unitsGByte="$oneGiByte"
+		if [ "$unitsTagStr" = "GB" ]
+		then unitsTagStr="GiB"
+		else unitsTagStr="TiB"
+		fi
 	else
+		#SI units: [MB|GB|TB]#
 		unitsKByte=1000
-		unitsGByte="$oneGByteSI"  # SI Units #
+		unitsGByte="$oneGByteSI"
 	fi
 
 	# GBytes #
@@ -2575,18 +2609,20 @@ Check_Bandwidth_Usage()
 
 	bandwidthPercentage=""
 	bwUsageStr1="" ;  bwUsageStr2=""
+	theStartDayNum="$(AllowanceStartDay check)"
+	theStartDayStr="$(_GetOrdinalNumStr_ "$theStartDayNum")"
+
 	if [ "$(echo "$userLimit 0" | awk '{print ($1 == $2)}')" -eq 1 ]
 	then
 		bandwidthPercentage="N/A"
-		bwUsageStr1="You have used ${bandwidthUsed}$(AllowanceUnits check) of data this cycle."
-		bwUsageStr2="The next cycle starts on day $(AllowanceStartDay check) of the month."
+		bwUsageStr1="You have used ${bandwidthUsed}$unitsTagStr of data this cycle."
+		bwUsageStr2="The next cycle starts on the $theStartDayStr day of the month."
 	else
 		bandwidthPercentage="$(echo "$bandwidthUsed $userLimit" | awk '{printf("%.2f", ($1*100)/$2);}')"
-		bwUsageStr1="You have used ${bandwidthPercentage}%% (${bandwidthUsed}$(AllowanceUnits check)) of your ${userLimit}$(AllowanceUnits check) cycle allowance."
-		bwUsageStr2="The next cycle starts on day $(AllowanceStartDay check) of the month."
+		bwUsageStr1="You have used ${bandwidthPercentage}%% (${bandwidthUsed}$unitsTagStr) of your ${userLimit}$(AllowanceUnits check) cycle allowance."
+		bwUsageStr2="The next cycle starts on the $theStartDayStr day of the month."
 	fi
 
-	local doSilent="silent"
 	if [ $# -eq 0 ] || [ -z "$1" ]
 	then
 		isVerbose=true ; doSilent=""
@@ -2739,22 +2775,23 @@ ScriptHeader()
 ##----------------------------------------##
 MainMenu()
 {
-	local menuOption  storageLocStr
+	local menuOption  storageLocStr  theStartDayNum
 	local jffsFreeSpace  jffsFreeSpaceStr  jffsSpaceMsgTag
+	local MENU_DAILY_EMAIL  MENU_USAGE_ENABLED
+	local MENU_BANDWIDTH_ALLOWANCE  MENU_BANDWIDTH_USAGE
 
-	MENU_DAILYEMAIL="$(DailyEmail check)"
-	if [ "$MENU_DAILYEMAIL" = "html" ]
+	MENU_DAILY_EMAIL="$(DailyEmail check)"
+	if [ "$MENU_DAILY_EMAIL" = "html" ]
 	then
-		MENU_DAILYEMAIL="${PASS}ENABLED - HTML"
-	elif [ "$MENU_DAILYEMAIL" = "text" ]
+		MENU_DAILY_EMAIL="${PASS}ENABLED - HTML"
+	elif [ "$MENU_DAILY_EMAIL" = "text" ]
 	then
-		MENU_DAILYEMAIL="${PASS}ENABLED - TEXT"
-	elif [ "$MENU_DAILYEMAIL" = "none" ]
+		MENU_DAILY_EMAIL="${PASS}ENABLED - TEXT"
+	elif [ "$MENU_DAILY_EMAIL" = "none" ]
 	then
-		MENU_DAILYEMAIL="${ERR}DISABLED"
+		MENU_DAILY_EMAIL="${ERR}DISABLED"
 	fi
 
-	local MENU_USAGE_ENABLED
 	if UsageEmail check
 	then MENU_USAGE_ENABLED="${PASS}ENABLED"
 	else MENU_USAGE_ENABLED="${ERR}DISABLED"
@@ -2762,11 +2799,19 @@ MainMenu()
 
 	local bandwidthDataUnits="$(AllowanceUnits check)"
 	local bandwidthAllowance="$(BandwidthAllowance check)"
-	local MENU_BANDWIDTHALLOWANCE
 	if [ "$(echo "$bandwidthAllowance 0" | awk '{print ($1 == $2)}')" -eq 1 ]
-	then MENU_BANDWIDTHALLOWANCE="UNLIMITED"
-	else MENU_BANDWIDTHALLOWANCE="${bandwidthAllowance} ${bandwidthDataUnits}ytes"
+	then MENU_BANDWIDTH_ALLOWANCE="UNLIMITED"
+	else MENU_BANDWIDTH_ALLOWANCE="${bandwidthAllowance} ${bandwidthDataUnits}ytes"
 	fi
+
+	local menuBWUsageStr="$(_GetBandwidthUsageStringFromFile_)"
+	if ! echo "$menuBWUsageStr" | grep -q '[.]<br/>T'
+	then
+		MENU_BANDWIDTH_USAGE="$menuBWUsageStr"
+	else
+		MENU_BANDWIDTH_USAGE="$(echo "$menuBWUsageStr" | sed 's~.<br/>T~.\n      T~')"
+	fi
+	theStartDayNum="$(AllowanceStartDay check)"
 
 	storageLocStr="$(ScriptStorageLocation check | tr 'a-z' 'A-Z')"
 
@@ -2789,17 +2834,17 @@ MainMenu()
 	printf "   ${GRNct}1${CLRct}. Update stats now\n"
 	printf "      Database size: ${SETTING}%s${CLRct}\n\n" "$(_GetFileSize_ "$(_GetVNStatDatabaseFilePath_)" HRx)"
 	printf "   ${GRNct}2${CLRct}. Toggle emails for daily summary stats\n"
-	printf "      Currently: ${BOLD}$MENU_DAILYEMAIL${CLRct}\n\n"
+	printf "      Currently: ${BOLD}$MENU_DAILY_EMAIL${CLRct}\n\n"
 	printf "   ${GRNct}3${CLRct}. Toggle emails for data usage warnings\n"
 	printf "      Currently: ${BOLD}$MENU_USAGE_ENABLED${CLRct}\n\n"
 	printf "   ${GRNct}4${CLRct}. Set bandwidth allowance for data usage warnings\n"
-	printf "      Currently: ${SETTING}%s${CLRct}\n\n" "$MENU_BANDWIDTHALLOWANCE"
+	printf "      Currently: ${SETTING}%s${CLRct}\n\n" "$MENU_BANDWIDTH_ALLOWANCE"
 	printf "   ${GRNct}5${CLRct}. Set units for bandwidth allowance\n"
 	printf "      Currently: ${SETTING}%s${CLRct}\n\n" "${bandwidthDataUnits}yte"
 	printf "   ${GRNct}6${CLRct}. Set start day of cycle for bandwidth allowance\n"
-	printf "      Currently: ${SETTING}%s${CLRct}\n\n" "Day $(AllowanceStartDay check) of month"
+	printf "      Currently: ${SETTING}%s${CLRct}\n\n" "Day $theStartDayNum of every month"
 	printf "   ${GRNct}b${CLRct}. Check bandwidth usage now\n"
-	printf "      ${SETTING}%s${CLRct}\n\n" "$(_GetBandwidthUsageStringFromFile_ TEXT)"
+	printf "      ${SETTING}%s${CLRct}\n\n" "$MENU_BANDWIDTH_USAGE"
 	printf "   ${GRNct}v${CLRct}. Edit vnstat config\n\n"
 	printf "   ${GRNct}t${CLRct}. Toggle time output mode\n"
 	printf "      Currently ${SETTING}%s${CLRct} time values will be used for CSV exports\n\n" "$(OutputTimeMode check)"
@@ -3309,34 +3354,34 @@ Menu_AllowanceUnits()
 Menu_AllowanceStartDay()
 {
 	local exitMenu=false  allowanceStartDay=""
-	local newStartDay  oldStartDay  retCode=1
+	local newStartDayNum  theStartDayNum  retCode=1
 
-	oldStartDay="$(AllowanceStartDay check)"
+	theStartDayNum="$(AllowanceStartDay check)"
 
 	while true
 	do
 		ScriptHeader
-		printf " ${BOLD}Current day of month to reset bandwidth allowance: ${GRNct}${oldStartDay}${CLRct}\n\n"
+		printf " ${BOLD}Current day of month to reset bandwidth allowance: ${GRNct}${theStartDayNum}${CLRct}\n\n"
 		printf " ${BOLD}Please enter the day of the month when your bandwidth"
 		printf "\n allowance will be reset every month [${GRNct}1${CLRct}-${GRNct}28${CLRct}]:  "
-		read -r newStartDay
+		read -r newStartDayNum
 
-		if [ "$newStartDay" = "e" ] || \
-		   { [ -z "$newStartDay" ] && \
-		     [ "$oldStartDay" -gt 0 ] && [ "$oldStartDay" -lt 29 ] ; }
+		if [ "$newStartDayNum" = "e" ] || \
+		   { [ -z "$newStartDayNum" ] && \
+		     [ "$theStartDayNum" -gt 0 ] && [ "$theStartDayNum" -lt 29 ] ; }
 		then
 			exitMenu=true
 			break
-		elif ! Validate_Number "$newStartDay"
+		elif ! Validate_Number "$newStartDayNum"
 		then
 			printf "\n ${ERR}Please enter a valid number [1-28]${CLRct}\n\n"
 			PressEnter
-		elif [ "$newStartDay" -lt 1 ] || [ "$newStartDay" -gt 28 ]
+		elif [ "$newStartDayNum" -lt 1 ] || [ "$newStartDayNum" -gt 28 ]
 		then
 			printf "\n ${ERR}Please enter a number between 1 and 28${CLRct}\n\n"
 			PressEnter
 		else
-			allowanceStartDay="$newStartDay"
+			allowanceStartDay="$newStartDayNum"
 			break
 		fi
 	done
@@ -3402,7 +3447,7 @@ Menu_Edit()
 			export TZ
 			Check_Bandwidth_Usage silent
 			Clear_Lock
-			echo ; PressEnter
+			echo
 		fi
 	fi
 	Clear_Lock
