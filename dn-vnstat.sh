@@ -36,7 +36,7 @@
 ### Start of script variables ###
 readonly SCRIPT_NAME="dn-vnstat"
 readonly SCRIPT_VERSION="v2.0.13"
-readonly SCRIPT_VERSTAG="26040501"
+readonly SCRIPT_VERSTAG="26040520"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/vnstat-on-merlin/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
@@ -571,7 +571,7 @@ Conf_FromSettings()
 			cp -a "$VNSTAT_CONFIG" "${VNSTAT_CONFIG}.bak"
 			grep "^dnvnstat_" "$SETTINGSFILE" | grep -v "version" > "$TMPFILE"
 			sed -i "s/^dnvnstat_//g;s/ /=/g" "$TMPFILE"
-			warningresetrequired=false
+			warningResetRequired=false
 			while IFS='' read -r line || [ -n "$line" ]
 			do
 				SETTINGNAME="$(echo "$line" | cut -f1 -d'=' | awk '{ print toupper($1) }')"
@@ -582,7 +582,7 @@ Conf_FromSettings()
 					then
 						if [ "$(echo "$SETTINGVALUE $(BandwidthAllowance check)" | awk '{print ($1 != $2)}')" -eq 1 ]
 						then
-							warningresetrequired=true
+							warningResetRequired=true
 						fi
 					fi
 					sed -i "s/$SETTINGNAME=.*/$SETTINGNAME=$SETTINGVALUE/" "$SCRIPT_CONF"
@@ -590,7 +590,7 @@ Conf_FromSettings()
 				then
 					if [ "$SETTINGVALUE" != "$(AllowanceStartDay check)" ]
 					then
-						warningresetrequired=true
+						warningResetRequired=true
 					fi
 					sed -i 's/^MonthRotate .*$/MonthRotate '"$SETTINGVALUE"'/' "$VNSTAT_CONFIG"
 				fi
@@ -626,7 +626,7 @@ Conf_FromSettings()
 			TZ="$(cat /etc/TZ)"
 			export TZ
 
-			if "$warningresetrequired"
+			if "$warningResetRequired"
 			then
 				Reset_Allowance_Warnings force
 			fi
@@ -2497,16 +2497,16 @@ AllowanceUnits()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2025-Apr-27] ##
+## Modified by Martinski W. [2026-Apr-05] ##
 ##----------------------------------------##
 Reset_Allowance_Warnings()
 {
 	if { [ $# -gt 0 ] && [ "$1" = "force" ] ; } || \
 	   [ "$(date +%d | awk '{printf("%s", $1+1);}')" -eq "$(AllowanceStartDay check)" ]
 	then
-		rm -f "$SCRIPT_STORAGE_DIR/.warning75"
-		rm -f "$SCRIPT_STORAGE_DIR/.warning90"
-		rm -f "$SCRIPT_STORAGE_DIR/.warning100"
+		for percentNum in 75 80 85 90 95 100
+		do rm -f "$SCRIPT_STORAGE_DIR/.warning$percentNum"
+		done
 	fi
 }
 
@@ -2557,7 +2557,7 @@ _GetOrdinalNumStr_()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2026-Mar-15] ##
+## Modified by Martinski W. [2026-Apr-05] ##
 ##----------------------------------------##
 Check_Bandwidth_Usage()
 {
@@ -2632,12 +2632,13 @@ Check_Bandwidth_Usage()
 	if [ "$bandwidthPercentage" = "N/A" ] || \
 	   [ "$(echo "$bandwidthPercentage 75" | awk '{print ($1 < $2)}')" -eq 1 ]
 	then
+		Reset_Allowance_Warnings force
 		{
 		   echo "var usagethreshold = false;"
 		   echo "var thresholdstring = '';"
 		} > "$SCRIPT_STORAGE_DIR/.vnstatusage"
 	elif [ "$(echo "$bandwidthPercentage 75" | awk '{print ($1 >= $2)}')" -eq 1 ] && \
-	     [ "$(echo "$bandwidthPercentage 90" | awk '{print ($1 < $2)}')" -eq 1 ]
+	     [ "$(echo "$bandwidthPercentage 80" | awk '{print ($1 < $2)}')" -eq 1 ]
 	then
 		"$isVerbose" && Print_Output false "Data usage is at or above 75%%." "$WARN"
 		{
@@ -2648,9 +2649,38 @@ Check_Bandwidth_Usage()
 		then
 			Generate_Email usage "75%" "${bwUsageStr1} ${bwUsageStr2}" "$doSilent"
 			touch "$SCRIPT_STORAGE_DIR/.warning75"
+			rm -f "$SCRIPT_STORAGE_DIR/.warning80"
+		fi
+	elif [ "$(echo "$bandwidthPercentage 80" | awk '{print ($1 >= $2)}')" -eq 1 ] && \
+	     [ "$(echo "$bandwidthPercentage 85" | awk '{print ($1 < $2)}')" -eq 1 ]
+	then
+		"$isVerbose" && Print_Output false "Data usage is at or above 80%%." "$ERR"
+		{
+		   echo "var usagethreshold = true;"
+		   echo "var thresholdstring = 'Data usage is at or above 80%';"
+		} > "$SCRIPT_STORAGE_DIR/.vnstatusage"
+		if UsageEmail check && [ ! -f "$SCRIPT_STORAGE_DIR/.warning80" ]
+		then
+			Generate_Email usage "80%" "${bwUsageStr1} ${bwUsageStr2}" "$doSilent"
+			touch "$SCRIPT_STORAGE_DIR/.warning80"
+			rm -f "$SCRIPT_STORAGE_DIR/.warning85"
+		fi
+	elif [ "$(echo "$bandwidthPercentage 85" | awk '{print ($1 >= $2)}')" -eq 1 ] && \
+	     [ "$(echo "$bandwidthPercentage 90" | awk '{print ($1 < $2)}')" -eq 1 ]
+	then
+		"$isVerbose" && Print_Output false "Data usage is at or above 85%%." "$WARN"
+		{
+		   echo "var usagethreshold = true;"
+		   echo "var thresholdstring = 'Data usage is at or above 85%';"
+		} > "$SCRIPT_STORAGE_DIR/.vnstatusage"
+		if UsageEmail check && [ ! -f "$SCRIPT_STORAGE_DIR/.warning85" ]
+		then
+			Generate_Email usage "85%" "${bwUsageStr1} ${bwUsageStr2}" "$doSilent"
+			touch "$SCRIPT_STORAGE_DIR/.warning85"
+			rm -f "$SCRIPT_STORAGE_DIR/.warning90"
 		fi
 	elif [ "$(echo "$bandwidthPercentage 90" | awk '{print ($1 >= $2)}')" -eq 1 ] && \
-	     [ "$(echo "$bandwidthPercentage 100" | awk '{print ($1 < $2)}')" -eq 1 ]
+	     [ "$(echo "$bandwidthPercentage 95" | awk '{print ($1 < $2)}')" -eq 1 ]
 	then
 		"$isVerbose" && Print_Output false "Data usage is at or above 90%%." "$ERR"
 		{
@@ -2661,6 +2691,21 @@ Check_Bandwidth_Usage()
 		then
 			Generate_Email usage "90%" "${bwUsageStr1} ${bwUsageStr2}" "$doSilent"
 			touch "$SCRIPT_STORAGE_DIR/.warning90"
+			rm -f "$SCRIPT_STORAGE_DIR/.warning95"
+		fi
+	elif [ "$(echo "$bandwidthPercentage 95" | awk '{print ($1 >= $2)}')" -eq 1 ] && \
+	     [ "$(echo "$bandwidthPercentage 100" | awk '{print ($1 < $2)}')" -eq 1 ]
+	then
+		"$isVerbose" && Print_Output false "Data usage is at or above 95%%." "$ERR"
+		{
+		   echo "var usagethreshold = true;"
+		   echo "var thresholdstring = 'Data usage is at or above 95%';"
+		} > "$SCRIPT_STORAGE_DIR/.vnstatusage"
+		if UsageEmail check && [ ! -f "$SCRIPT_STORAGE_DIR/.warning95" ]
+		then
+			Generate_Email usage "95%" "${bwUsageStr1} ${bwUsageStr2}" "$doSilent"
+			touch "$SCRIPT_STORAGE_DIR/.warning95"
+			rm -f "$SCRIPT_STORAGE_DIR/.warning100"
 		fi
 	elif [ "$(echo "$bandwidthPercentage 100" | awk '{print ($1 >= $2)}')" -eq 1 ]
 	then
