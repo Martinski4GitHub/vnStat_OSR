@@ -4,7 +4,7 @@ Note: R1 runs on all supported architectures (ARM, AARCH, MIPS). R2 runs only on
 
 # Version R2 (based on vnStat 2.x) #
 
-### v2.0.13 - 2026-Apr-05 ###
+### v2.0.13 - 2026-Apr-06 ###
   * FIXED: In some instances, one of the PNG images for the vnStat hourly, daily, monthly, summary, and top-10 reports is partially rendered on the webpage, so it appears "truncated" with a blank or white area showing at the bottom of the image.
     [see GitHub issue #40 for further details]
     https://github.com/AMTM-OSR/vnstat-on-merlin/issues/40
@@ -12,6 +12,8 @@ Note: R1 runs on all supported architectures (ARM, AARCH, MIPS). R2 runs only on
   * FIXED: A bug in the WebUI page was allowing users to save invalid values (less than 1 and greater than 28) for the "Start day of the month for bandwidth usage data allowance" setting.
 
   * FIXED: A bug in the WebUI page was allowing users to save empty values for the "Maximum bandwidth data allowance" and the "Start day of the month for bandwidth usage data allowance" settings.
+
+  * IMPROVED: Added the following data usage warning percent thresholds: 80%, 85% and 95%. This results in sending more warning emails when the current data usage reaches or exceeds each threshold and is rapidly approaching 100% of the user's maximum monthly allowance.
 
   * Miscellaneous code improvements.
 
