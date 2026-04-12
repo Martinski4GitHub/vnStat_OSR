@@ -11,7 +11,7 @@
 ## Forked from https://github.com/de-vnull/vnstat-on-merlin ##
 ##                                                          ##
 ##############################################################
-# Last Modified: 2026-Apr-05
+# Last Modified: 2026-Apr-11
 #-------------------------------------------------------------
 
 ########         Shellcheck directives     ######
@@ -36,7 +36,7 @@
 ### Start of script variables ###
 readonly SCRIPT_NAME="dn-vnstat"
 readonly SCRIPT_VERSION="v2.0.13"
-readonly SCRIPT_VERSTAG="26040520"
+readonly SCRIPT_VERSTAG="26041123"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/vnstat-on-merlin/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
@@ -117,6 +117,9 @@ readonly WarnBYLWct="\e[30;103m"
 readonly WarnBMGNct="\e[30;105m"
 
 ### End of output format variables ###
+
+# Workaround for Entware ELF binaries compiled with RUNPATH #
+unset LD_LIBRARY_PATH
 
 # Give priority to built-in binaries #
 export PATH="/bin:/usr/bin:/sbin:/usr/sbin:$PATH"
@@ -532,21 +535,21 @@ Update_File()
 	then  ## vnstat config file ##
 		tmpfile="/tmp/$1"
 		Download_File "$SCRIPT_REPO/$1" "$tmpfile"
-		if [ ! -f "$SCRIPT_STORAGE_DIR/$1" ]
+		if [ ! -s "$SCRIPT_STORAGE_DIR/$1" ]
 		then
-			Download_File "$SCRIPT_REPO/$1" "$SCRIPT_STORAGE_DIR/$1.default"
+			Download_File "$SCRIPT_REPO/$1" "$SCRIPT_STORAGE_DIR/${1}.default"
 			Download_File "$SCRIPT_REPO/$1" "$SCRIPT_STORAGE_DIR/$1"
 			Print_Output true "$SCRIPT_STORAGE_DIR/$1 does not exist, downloading now." "$PASS"
-		elif [ -f "$SCRIPT_STORAGE_DIR/$1.default" ]
+		elif [ -s "$SCRIPT_STORAGE_DIR/${1}.default" ]
 		then
-			if ! diff -q "$tmpfile" "$SCRIPT_STORAGE_DIR/$1.default" >/dev/null 2>&1
+			if ! diff -q "$tmpfile" "$SCRIPT_STORAGE_DIR/${1}.default" >/dev/null 2>&1
 			then
-				Download_File "$SCRIPT_REPO/$1" "$SCRIPT_STORAGE_DIR/$1.default"
-				Print_Output true "New default version of $1 downloaded to $SCRIPT_STORAGE_DIR/$1.default, please compare against your $SCRIPT_STORAGE_DIR/$1" "$PASS"
+				Download_File "$SCRIPT_REPO/$1" "$SCRIPT_STORAGE_DIR/${1}.default"
+				Print_Output true "New default version of $1 downloaded to $SCRIPT_STORAGE_DIR/${1}.default, please compare against your $SCRIPT_STORAGE_DIR/$1" "$PASS"
 			fi
 		else
-			Download_File "$SCRIPT_REPO/$1" "$SCRIPT_STORAGE_DIR/$1.default"
-			Print_Output true "$SCRIPT_STORAGE_DIR/$1.default does not exist, downloading now. Please compare against your $SCRIPT_STORAGE_DIR/$1" "$PASS"
+			Download_File "$SCRIPT_REPO/$1" "$SCRIPT_STORAGE_DIR/${1}.default"
+			Print_Output true "$SCRIPT_STORAGE_DIR/${1}.default does not exist, downloading now. Please compare against your $SCRIPT_STORAGE_DIR/$1" "$PASS"
 		fi
 		rm -f "$tmpfile"
 	else
@@ -728,7 +731,7 @@ _GetConfigParam_()
 }
 
 ##----------------------------------------##
-## Modified by Martinski W. [2026-Mar-15] ##
+## Modified by Martinski W. [2026-Apr-10] ##
 ##----------------------------------------##
 Conf_Exists()
 {
@@ -737,48 +740,74 @@ Conf_Exists()
 	if [ -f "$VNSTAT_CONFIG" ]
 	then
 		restartvnstat=false
-		if ! grep -q "^MaxBandwidth 1000" "$VNSTAT_CONFIG"; then
+		if ! grep -q "^MaxBandwidth 1000" "$VNSTAT_CONFIG"
+		then
 			sed -i 's/^MaxBandwidth.*$/MaxBandwidth 1000/' "$VNSTAT_CONFIG"
 			restartvnstat=true
 		fi
-		if ! grep -q "^TimeSyncWait 10" "$VNSTAT_CONFIG"; then
+		if ! grep -q "^TimeSyncWait 10" "$VNSTAT_CONFIG"
+		then
 			sed -i 's/^TimeSyncWait.*$/TimeSyncWait 10/' "$VNSTAT_CONFIG"
 			restartvnstat=true
 		fi
-		if ! grep -q "^UpdateInterval 30" "$VNSTAT_CONFIG"; then
+		if ! grep -q "^UpdateInterval 30" "$VNSTAT_CONFIG"
+		then
 			sed -i 's/^UpdateInterval.*$/UpdateInterval 30/' "$VNSTAT_CONFIG"
 			restartvnstat=true
 		fi
-		if ! grep -qE "^UnitMode [0-2]$" "$VNSTAT_CONFIG"; then
+		if ! grep -qE "^UnitMode [0-2]$" "$VNSTAT_CONFIG"
+		then
 			sed -i 's/^UnitMode.*$/UnitMode 2/' "$VNSTAT_CONFIG"
 			restartvnstat=true
 		fi
-		if ! grep -qE "^RateUnitMode [0-1]$" "$VNSTAT_CONFIG"; then
+		if ! grep -qE "^RateUnitMode [0-1]$" "$VNSTAT_CONFIG"
+		then
 			sed -i 's/^RateUnitMode.*$/RateUnitMode 1/' "$VNSTAT_CONFIG"
 			restartvnstat=true
 		fi
-		if ! grep -q "^OutputStyle 0" "$VNSTAT_CONFIG"; then
+		if ! grep -q "^OutputStyle 0" "$VNSTAT_CONFIG"
+		then
 			sed -i 's/^OutputStyle.*$/OutputStyle 0/' "$VNSTAT_CONFIG"
 			restartvnstat=true
 		fi
-		if ! grep -q '^DayFormat "%Y-%m-%d"' "$VNSTAT_CONFIG"; then
+		if ! grep -q '^DayFormat "%Y-%m-%d"' "$VNSTAT_CONFIG"
+		then
 			sed -i 's/^DayFormat.*$/DayFormat "%Y-%m-%d"/' "$VNSTAT_CONFIG"
 			restartvnstat=true
 		fi
-		if ! grep -q '^TopFormat "%Y-%m-%d"' "$VNSTAT_CONFIG"; then
+		if ! grep -q '^TopFormat "%Y-%m-%d"' "$VNSTAT_CONFIG"
+		then
 			sed -i 's/^TopFormat.*$/TopFormat "%Y-%m-%d"/' "$VNSTAT_CONFIG"
 			restartvnstat=true
 		fi
-		if ! grep -q '^MonthFormat "%Y-%m"' "$VNSTAT_CONFIG"; then
+		if ! grep -q '^MonthFormat "%Y-%m"' "$VNSTAT_CONFIG"
+		then
 			sed -i 's/^MonthFormat.*$/MonthFormat "%Y-%m"/' "$VNSTAT_CONFIG"
 			restartvnstat=true
 		fi
-		if ! grep -q '^HeaderFormat "%Y-%b-%d %H:%M %a"' "$VNSTAT_CONFIG"; then
+		if ! grep -q '^HeaderFormat "%Y-%b-%d %H:%M %a"' "$VNSTAT_CONFIG"
+		then
 			sed -i 's/^HeaderFormat.*$/HeaderFormat "%Y-%b-%d %H:%M %a"/' "$VNSTAT_CONFIG"
+			restartvnstat=true
+		fi
+		if ! grep -qE '^CHeader[[:blank:]]+"FFE4B5"' "$VNSTAT_CONFIG"
+		then
+			sed -i 's/^CHeader[[:blank:]]\+.*$/CHeader         "FFE4B5"/' "$VNSTAT_CONFIG"
+			restartvnstat=true
+		fi
+		if ! grep -qE '^CHeaderDate[[:blank:]]+"0000FF"' "$VNSTAT_CONFIG"
+		then
+			sed -i 's/^CHeaderDate[[:blank:]]\+.*$/CHeaderDate     "0000FF"/' "$VNSTAT_CONFIG"
+			restartvnstat=true
+		fi
+		if ! grep -qE '^CHeaderTitle[[:blank:]]+"000000"' "$VNSTAT_CONFIG"
+		then
+			sed -i 's/^CHeaderTitle[[:blank:]]\+.*$/CHeaderTitle    "000000"/' "$VNSTAT_CONFIG"
 			restartvnstat=true
 		fi
 		if [ "$restartvnstat" = "true" ]
 		then
+			printf "\nPlease wait...\n"
 			/opt/etc/init.d/S33vnstat restart >/dev/null 2>&1
 			Generate_Images silent
 			Generate_Stats silent
@@ -2102,11 +2131,11 @@ Generate_Images()
 	interface="$(_GetInterfaceNameFromConfig_)"
 	outputs="s hg d t m"   # what images to generate #
 
-	$VNSTATI_COMMAND -s -i "$interface" -o "$IMAGE_OUTPUT_DIR/vnstat_s.png"
-	$VNSTATI_COMMAND -hg -i "$interface" -o "$IMAGE_OUTPUT_DIR/vnstat_hg.png"
-	$VNSTATI_COMMAND -d 31 -i "$interface" -o "$IMAGE_OUTPUT_DIR/vnstat_d.png"
-	$VNSTATI_COMMAND -m 12 -i "$interface" -o "$IMAGE_OUTPUT_DIR/vnstat_m.png"
-	$VNSTATI_COMMAND -t 10 -i "$interface" -o "$IMAGE_OUTPUT_DIR/vnstat_t.png"
+	$VNSTATI_COMMAND -s -i "$interface" -L -o "$IMAGE_OUTPUT_DIR/vnstat_s.png"
+	$VNSTATI_COMMAND -hg -i "$interface" -L -o "$IMAGE_OUTPUT_DIR/vnstat_hg.png"
+	$VNSTATI_COMMAND -d 31 -i "$interface" -L -o "$IMAGE_OUTPUT_DIR/vnstat_d.png"
+	$VNSTATI_COMMAND -m 12 -i "$interface" -L -o "$IMAGE_OUTPUT_DIR/vnstat_m.png"
+	$VNSTATI_COMMAND -t 10 -i "$interface" -L -o "$IMAGE_OUTPUT_DIR/vnstat_t.png"
 	sleep 1
 
 	for output in $outputs
