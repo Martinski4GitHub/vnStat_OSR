@@ -37,7 +37,7 @@
 readonly SCRIPT_NAME="dn-vnstat"
 readonly SCRIPT_VERSION="v2.0.13"
 readonly SCRIPT_VERSTAG="26041123"
-SCRIPT_BRANCH="develop"
+SCRIPT_BRANCH="main"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/vnstat-on-merlin/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
 readonly SCRIPT_WEBPAGE_DIR="$(readlink -f /www/user)"
