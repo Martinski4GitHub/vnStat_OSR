@@ -4,16 +4,34 @@ Note: R1 runs on all supported architectures (ARM, AARCH, MIPS). R2 runs only on
 
 # Version R2 (based on vnStat 2.x) #
 
+### v2.0.13 - 2026-Apr-12 ###
+  * FIXED: In some instances, one of the PNG images for the vnStat hourly, daily, monthly, summary, and top-10 reports is partially rendered on the webpage, so it appears "truncated" with a blank or white area showing at the bottom of the image.
+    [see GitHub issue #40 for further details]
+    https://github.com/AMTM-OSR/vnstat-on-merlin/issues/40
+
+  * FIXED: A bug in the WebUI page was allowing users to save invalid values (less than 1 and greater than 28) for the "Start day of the month for bandwidth usage data allowance" setting.
+
+  * FIXED: A bug in the WebUI page was allowing users to save empty values for the "Maximum bandwidth data allowance" and the "Start day of the month for bandwidth usage data allowance" settings.
+
+  * FIXED: Added "unset LD_LIBRARY_PATH" line as a workaround due to the latest Entware binaries using the RUNPATH embedded library search path mechanism instead of the previous RPATH method.
+
+  * IMPROVED: Added the following percent thresholds for data usage warnings: 80%, 85%, and 95%. This results in sending more warning emails in the event that the current bandwidth data usage rapidly approaches 100% of the user's maximum monthly allowance, and the ever-increasing data usage reaches or exceeds each warning threshold along the way.
+
+  * IMPROVED: Modified code to create slightly larger vnStat PNG images (hourly, daily, monthly, summary, and top-10 reports) for better readability.
+
+  * NEW: The default configuraion file (/opt/share/dn-vnstat.d/vnstat.conf.default) was updated to the 2.13 version.
+
+  * Miscellaneous code improvements.
+
+
 ### v2.0.12 - 2026-Mar-15 ###
   * NEW: Added code to support automatic add-on updates from AMTM.
   * IMPROVED: Modified format of date parameters used in email and reports to follow the ISO-8601 international standard to maintain consistency and avoid ambiguity.
   * IMPROVED: Improvements in CLI menu options formatting and handling.
 
-
 ### v2.0.11 - 2025-Nov-16 ###
   * IMPROVED: Modified code to make sure we get correct parameters when changing settings from the WebUI.
   * IMPROVED: Miscellaneous code improvements.
-
 
 ### v2.0.10 - 2025-Nov-08 ###
   * IMPROVED: Modified code to re-initialize global parameters after USB-attached drive has been mounted and Entware is found.
