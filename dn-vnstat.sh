@@ -11,7 +11,7 @@
 ## Forked from https://github.com/de-vnull/vnstat-on-merlin ##
 ##                                                          ##
 ##############################################################
-# Last Modified: 2026-Apr-11
+# Last Modified: 2026-Apr-15
 #-------------------------------------------------------------
 
 ########         Shellcheck directives     ######
@@ -35,8 +35,8 @@
 
 ### Start of script variables ###
 readonly SCRIPT_NAME="dn-vnstat"
-readonly SCRIPT_VERSION="v2.0.13"
-readonly SCRIPT_VERSTAG="26041123"
+readonly SCRIPT_VERSION="v2.0.14"
+readonly SCRIPT_VERSTAG="26041500"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/vnstat-on-merlin/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
@@ -737,7 +737,7 @@ Conf_Exists()
 {
 	local restartvnstat=false
 
-	if [ -f "$VNSTAT_CONFIG" ]
+	if [ -s "$VNSTAT_CONFIG" ]
 	then
 		restartvnstat=false
 		if ! grep -q "^MaxBandwidth 1000" "$VNSTAT_CONFIG"
@@ -817,7 +817,7 @@ Conf_Exists()
 		Update_File vnstat.conf
 	fi
 
-	if [ -f "$SCRIPT_CONF" ]
+	if [ -s "$SCRIPT_CONF" ]
 	then
 		dos2unix "$SCRIPT_CONF"
 		chmod 0644 "$SCRIPT_CONF"
@@ -846,9 +846,12 @@ Conf_Exists()
 		return 0
 	else
 		{
-		   echo "DAILYEMAIL=none"; echo "USAGEEMAIL=false"
-		   echo "DATAALLOWANCE=1200.00"; echo "ALLOWANCEUNIT=G"
-		   echo "STORAGELOCATION=jffs"; echo "OUTPUTTIMEMODE=unix"
+		   echo "DAILYEMAIL=none"
+		   echo "USAGEEMAIL=false"
+		   echo "DATAALLOWANCE=1200.00"
+		   echo "ALLOWANCEUNIT=G"
+		   echo "STORAGELOCATION=jffs"
+		   echo "OUTPUTTIMEMODE=unix"
 		   echo "JFFS_MSGLOGTIME=0"
 		} > "$SCRIPT_CONF"
 		return 1
@@ -864,7 +867,7 @@ Auto_ServiceEvent()
 	local theScriptFilePath="/jffs/scripts/$SCRIPT_NAME"
 	case $1 in
 		create)
-			if [ -f /jffs/scripts/service-event ]
+			if [ -s /jffs/scripts/service-event ]
 			then
 				STARTUPLINECOUNT="$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/service-event)"
 				STARTUPLINECOUNTEX="$(grep -cx 'if echo "$2" | /bin/grep -q "'"$SCRIPT_NAME"'"; then { '"$theScriptFilePath"' service_event "$@" & }; fi # '"$SCRIPT_NAME" /jffs/scripts/service-event)"
@@ -873,7 +876,6 @@ Auto_ServiceEvent()
 				then
 					sed -i -e '/# '"$SCRIPT_NAME"'/d' /jffs/scripts/service-event
 				fi
-
 				if [ "$STARTUPLINECOUNTEX" -eq 0 ]
 				then
 					{
@@ -886,14 +888,15 @@ Auto_ServiceEvent()
 				  echo 'if echo "$2" | /bin/grep -q "'"$SCRIPT_NAME"'"; then { '"$theScriptFilePath"' service_event "$@" & }; fi # '"$SCRIPT_NAME"
 				  echo
 				} > /jffs/scripts/service-event
-				chmod 0755 /jffs/scripts/service-event
 			fi
+			chmod 0755 /jffs/scripts/service-event
 		;;
 		delete)
-			if [ -f /jffs/scripts/service-event ]
+			if [ -s /jffs/scripts/service-event ]
 			then
 				STARTUPLINECOUNT="$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/service-event)"
-				if [ "$STARTUPLINECOUNT" -gt 0 ]; then
+				if [ "$STARTUPLINECOUNT" -gt 0 ]
+				then
 					sed -i -e '/# '"$SCRIPT_NAME"'/d' /jffs/scripts/service-event
 				fi
 			fi
@@ -910,7 +913,7 @@ Auto_Startup()
 	local theScriptFilePath="/jffs/scripts/$SCRIPT_NAME"
 	case $1 in
 		create)
-			if [ -f /jffs/scripts/post-mount ]
+			if [ -s /jffs/scripts/post-mount ]
 			then
 				STARTUPLINECOUNT="$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/post-mount)"
 				STARTUPLINECOUNTEX="$(grep -cx '\[ -x "${1}/entware/bin/opkg" \] && \[ -x '"$theScriptFilePath"' \] && '"$theScriptFilePath"' startup "$@" & # '"$SCRIPT_NAME" /jffs/scripts/post-mount)"
@@ -919,7 +922,6 @@ Auto_Startup()
 				then
 					sed -i -e '/# '"$SCRIPT_NAME"'/d' /jffs/scripts/post-mount
 				fi
-
 				if [ "$STARTUPLINECOUNTEX" -eq 0 ]
 				then
 					{
@@ -932,14 +934,15 @@ Auto_Startup()
 				  echo '[ -x "${1}/entware/bin/opkg" ] && [ -x '"$theScriptFilePath"' ] && '"$theScriptFilePath"' startup "$@" & # '"$SCRIPT_NAME"
 				  echo
 				} > /jffs/scripts/post-mount
-				chmod 0755 /jffs/scripts/post-mount
 			fi
+			chmod 0755 /jffs/scripts/post-mount
 		;;
 		delete)
-			if [ -f /jffs/scripts/post-mount ]
+			if [ -s /jffs/scripts/post-mount ]
 			then
 				STARTUPLINECOUNT="$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/post-mount)"
-				if [ "$STARTUPLINECOUNT" -gt 0 ]; then
+				if [ "$STARTUPLINECOUNT" -gt 0 ]
+				then
 					sed -i -e '/# '"$SCRIPT_NAME"'/d' /jffs/scripts/post-mount
 				fi
 			fi
@@ -955,11 +958,13 @@ Auto_Cron()
 	case $1 in
 		create)
 			STARTUPLINECOUNT="$(cru l | grep -c "${SCRIPT_NAME}_images")"
-			if [ "$STARTUPLINECOUNT" -gt 0 ]; then
+			if [ "$STARTUPLINECOUNT" -gt 0 ]
+			then
 				cru d "${SCRIPT_NAME}_images"
 			fi
 			STARTUPLINECOUNT="$(cru l | grep -c "${SCRIPT_NAME}_stats")"
-			if [ "$STARTUPLINECOUNT" -gt 0 ]; then
+			if [ "$STARTUPLINECOUNT" -gt 0 ]
+			then
 				cru d "${SCRIPT_NAME}_stats"
 			fi
 

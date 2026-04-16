@@ -4,6 +4,9 @@ Note: R1 runs on all supported architectures (ARM, AARCH, MIPS). R2 runs only on
 
 # Version R2 (based on vnStat 2.x) #
 
+### v2.0.14 - 2026-Apr-15 ###
+  * IMPROVED: Modified code to ensure that the F/W built-in hook scripts used by the add-on have executable permissions.
+
 ### v2.0.13 - 2026-Apr-12 ###
   * FIXED: In some instances, one of the PNG images for the vnStat hourly, daily, monthly, summary, and top-10 reports is partially rendered on the webpage, so it appears "truncated" with a blank or white area showing at the bottom of the image.
     [see GitHub issue #40 for further details]
