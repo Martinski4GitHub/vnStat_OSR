@@ -11,7 +11,7 @@
 ## Forked from https://github.com/de-vnull/vnstat-on-merlin ##
 ##                                                          ##
 ##############################################################
-# Last Modified: 2026-Apr-15
+# Last Modified: 2026-Apr-17
 #-------------------------------------------------------------
 
 ########         Shellcheck directives     ######
@@ -36,7 +36,7 @@
 ### Start of script variables ###
 readonly SCRIPT_NAME="dn-vnstat"
 readonly SCRIPT_VERSION="v2.0.14"
-readonly SCRIPT_VERSTAG="26041500"
+readonly SCRIPT_VERSTAG="26041723"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/vnstat-on-merlin/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
@@ -97,13 +97,13 @@ readonly sqlDBLogFileName="${SCRIPT_NAME}_DBSQL_DEBUG.LOG"
 ### End of script variables ###
 
 ### Start of output format variables ###
-readonly CRIT="\\e[41m"
-readonly ERR="\\e[31m"
-readonly WARN="\\e[33m"
-readonly PASS="\\e[32m"
-readonly BOLD="\\e[1m"
-readonly SETTING="${BOLD}\\e[36m"
-readonly CLEARFORMAT="\\e[0m"
+readonly CRIT="\e[41m"
+readonly ERR="\e[31m"
+readonly WARN="\e[33m"
+readonly PASS="\e[32m"
+readonly BOLD="\e[1m"
+readonly SETTING="${BOLD}\e[36m"
+readonly CLEARFORMAT="\e[0m"
 
 ##----------------------------------------##
 ## Modified by Martinski W. [2025-Apr-28] ##
@@ -123,6 +123,16 @@ unset LD_LIBRARY_PATH
 
 # Give priority to built-in binaries #
 export PATH="/bin:/usr/bin:/sbin:/usr/sbin:$PATH"
+
+# To support installation in non-router modes #
+mountWebGUI_OK=false
+readonly nvramSWMode="$(nvram get sw_mode)"
+case "$nvramSWMode" in
+   1) mountWebGUI_OK=true ;; #Router#
+   2) mountWebGUI_OK=true ;; #Repeater#
+   3) mountWebGUI_OK=true ;; #AccessPoint#
+   4) mountWebGUI_OK=false ;; #AiMeshNode#
+esac
 
 ##----------------------------------------##
 ## Modified by Martinski W. [2025-Apr-27] ##
@@ -307,8 +317,11 @@ Update_Version()
 			case "$confirm" in
 				y|Y)
 					printf "\n"
-					Update_File shared-jy.tar.gz
-					Update_File vnstat-ui.asp
+					if "$mountWebGUI_OK"
+					then
+						Update_File vnstat-ui.asp
+						Update_File shared-jy.tar.gz
+					fi
 					Update_File vnstat.conf
 					Update_File S33vnstat
 					Download_File "$SCRIPT_REPO/$SCRIPT_NAME.sh" "/jffs/scripts/$SCRIPT_NAME" && \
@@ -337,8 +350,11 @@ Update_Version()
 	then
 		serverver="$(curl -fsL --retry 4 --retry-delay 5 "$SCRIPT_REPO/$SCRIPT_NAME.sh" | grep "SCRIPT_VERSION=" | grep -m1 -oE "$scriptVersRegExp")"
 		Print_Output true "Downloading latest version ($serverver) of $SCRIPT_NAME" "$PASS"
-		Update_File shared-jy.tar.gz
-		Update_File vnstat-ui.asp
+		if "$mountWebGUI_OK"
+		then
+			Update_File vnstat-ui.asp
+			Update_File shared-jy.tar.gz
+		fi
 		Update_File vnstat.conf
 		Update_File S33vnstat
 		Download_File "$SCRIPT_REPO/$SCRIPT_NAME.sh" "/jffs/scripts/$SCRIPT_NAME" && \
@@ -683,7 +699,6 @@ Create_Dirs()
 	fi
 }
 
-### Create symbolic links to /www/user for WebUI files to avoid file duplication ###
 Create_Symlinks()
 {
 	rm -rf "${SCRIPT_WEB_DIR:?}/"* 2>/dev/null
@@ -858,15 +873,17 @@ Conf_Exists()
 	fi
 }
 
-### Add script hook to service-event and pass service_event argument and all other arguments passed to the service call ###
 ##----------------------------------------##
 ## Modified by Martinski W. [2025-Jun-17] ##
 ##----------------------------------------##
 Auto_ServiceEvent()
 {
 	local theScriptFilePath="/jffs/scripts/$SCRIPT_NAME"
-	case $1 in
+	case "$1" in
 		create)
+			if ! "$mountWebGUI_OK"
+			then return 0
+			fi
 			if [ -s /jffs/scripts/service-event ]
 			then
 				STARTUPLINECOUNT="$(grep -c '# '"$SCRIPT_NAME" /jffs/scripts/service-event)"
@@ -911,7 +928,7 @@ Auto_ServiceEvent()
 Auto_Startup()
 {
 	local theScriptFilePath="/jffs/scripts/$SCRIPT_NAME"
-	case $1 in
+	case "$1" in
 		create)
 			if [ -s /jffs/scripts/post-mount ]
 			then
@@ -955,7 +972,7 @@ Auto_Startup()
 ##----------------------------------------##
 Auto_Cron()
 {
-	case $1 in
+	case "$1" in
 		create)
 			STARTUPLINECOUNT="$(cru l | grep -c "${SCRIPT_NAME}_images")"
 			if [ "$STARTUPLINECOUNT" -gt 0 ]
@@ -1050,7 +1067,8 @@ _Check_WebGUI_Page_Exists_()
 Get_WebUI_Page()
 {
 	if [ $# -eq 0 ] || [ -z "$1" ] || [ ! -s "$1" ]
-	then MyWebPage="NONE" ; return 1 ; fi
+	then MyWebPage="NONE" ; return 1
+	fi
 
 	local webPageFile  webPagePath
 
@@ -1198,13 +1216,15 @@ Mount_WebUI()
 ##-------------------------------------##
 _CheckFor_WebGUI_Page_()
 {
-   if [ "$(_Check_WebGUI_Page_Exists_)" = "NONE" ]
-   then Mount_WebUI ; fi
+   if "$mountWebGUI_OK" && \
+      [ "$(_Check_WebGUI_Page_Exists_)" = "NONE" ]
+   then Mount_WebUI
+   fi
 }
 
 Shortcut_Script()
 {
-	case $1 in
+	case "$1" in
 		create)
 			if [ -d /opt/bin ] && \
 			   [ ! -f "/opt/bin/$SCRIPT_NAME" ] && \
@@ -1286,20 +1306,57 @@ Check_Requirements()
 	fi
 }
 
-### Determine WAN interface using nvram ###
+##-------------------------------------##
+## Added by Martinski W. [2026-Apr-17] ##
+##-------------------------------------##
+_GetCurrentActiveInterfaces_()
+{
+    local upIFaceList=""  sysNetDir="/sys/class/net"  doMenuHR=false
+    local ethxIFaceList="eth0 eth1 eth2 eth3 eth4 eth5 eth6 eth7 eth8 eth9"
+    local wifiIFaceList="wl0.1 wl0.2 wl0.3 wl1.1 wl1.2 wl1.3 wl2.1 wl2.2 wl2.3 wl3.1 wl3.2 wl3.3"
+
+    if [ ! -d "$sysNetDir" ]
+    then echo "NONE" ; return 1
+    fi
+    if [ $# -gt 0 ] && [ "$1" = "MenuHR" ]
+    then doMenuHR=true
+    fi
+
+    for ifaceID in $ethxIFaceList $wifiIFaceList
+    do
+       if [ ! -f "${sysNetDir}/${ifaceID}/operstate" ] || \
+          [ "$(cat "${sysNetDir}/${ifaceID}/operstate")" = "down" ]
+       then continue
+       fi
+       if "$doMenuHR"
+       then ifaceID="${SETTING}${ifaceID}${CLRct}"
+       fi
+       upIFaceList="${upIFaceList:+$upIFaceList, }$ifaceID"
+    done
+
+    if [ -n "${upIFaceList:+xSETx}" ]
+    then retCode=0
+    else retCode=1
+    fi
+    printf "${upIFaceList:=NONE}\n"
+    return "$retCode"
+}
+
 ##----------------------------------------##
 ## Modified by Martinski W. [2025-Apr-29] ##
 ##----------------------------------------##
 Get_WAN_IFace()
 {
-    local wanPrefix=""  wanProto
+    local wanPrefix=""  wanProto  IFACE_WAN=""
+
     for ifaceNum in 0 1
     do
         if [ "$(nvram get "wan${ifaceNum}_primary")" = "1" ]
         then wanPrefix="wan${ifaceNum}" ; break
         fi
     done
-    if [ -z "$wanPrefix" ] ; then echo "ERROR" ; return 1
+    if [ -z "$wanPrefix" ]
+    then echo "ERROR" ; return 1
     fi
 
     wanProto="$(nvram get "${wanPrefix}_proto")"
@@ -1311,7 +1368,7 @@ Get_WAN_IFace()
     else
         IFACE_WAN="$(nvram get "${wanPrefix}_ifname")"
     fi
-    echo "$IFACE_WAN"
+    echo "${IFACE_WAN:=NONE}"
     return 0
 }
 
@@ -2116,8 +2173,8 @@ Generate_Images()
 	Conf_Exists
 	ScriptStorageLocation load
 	Create_Symlinks
-	Auto_Startup create 2>/dev/null
 	Auto_Cron create 2>/dev/null
+	Auto_Startup create 2>/dev/null
 	Auto_ServiceEvent create 2>/dev/null
 	Shortcut_Script create
 	Process_Upgrade
@@ -2172,8 +2229,8 @@ Generate_Stats()
 	Conf_Exists
 	ScriptStorageLocation load
 	Create_Symlinks
-	Auto_Startup create 2>/dev/null
 	Auto_Cron create 2>/dev/null
+	Auto_Startup create 2>/dev/null
 	Auto_ServiceEvent create 2>/dev/null
 	Shortcut_Script create
 	Process_Upgrade
@@ -2907,8 +2964,11 @@ MainMenu()
 		jffsFreeSpaceStr="${WarnBYLWct} $jffsFreeSpace ${CLRct}  ${jffsSpaceMsgTag}${CLRct}"
 	fi
 
-	printf " WebUI for %s is available at:\n" "$SCRIPT_NAME"
-	printf " ${SETTING}%s${CLRct}\n\n" "$(Get_WebUI_URL)"
+	if "$mountWebGUI_OK"
+	then
+		printf " WebUI for %s is available at:\n" "$SCRIPT_NAME"
+		printf " ${SETTING}%s${CLRct}\n\n" "$(Get_WebUI_URL)"
+	fi
 
 	printf "   ${GRNct}1${CLRct}. Update stats now\n"
 	printf "      Database size: ${SETTING}%s${CLRct}\n\n" "$(_GetFileSize_ "$(_GetVNStatDatabaseFilePath_)" HRx)"
@@ -3145,10 +3205,10 @@ Menu_Install()
 	fi
 
 	WAN_IFACE=""
-	printf "\n${BOLD}WAN Interface detected as ${GRNct}%s${CLEARFORMAT}\n" "$(Get_WAN_IFace)"
+	printf "\n${BOLD}WAN Interface detected as ${GRNct}%s${CLRct}\n" "$(Get_WAN_IFace)"
 	while true
 	do
-		printf "\n${BOLD}Is this correct? (y/n)${CLEARFORMAT}  "
+		printf "\n${BOLD}Is this correct? (y/n)${CLRct}  "
 		read -r confirm
 		case "$confirm" in
 			y|Y)
@@ -3158,10 +3218,12 @@ Menu_Install()
 			n|N)
 				while true
 				do
-					printf "\n${BOLD}Please enter correct interface:${CLEARFORMAT}  "
+					printf "\n${BOLD}The following interfaces are currently available:${CLRct}\n"
+					_GetCurrentActiveInterfaces_ MenuHR
+					printf "\n${BOLD}Please enter correct interface for vnstat:${CLRct}  "
 					read -r iface
 					iface_lower="$(echo "$iface" | tr "A-Z" "a-z")"
-					if [ "$iface" = "e" ]
+					if echo "$iface" | grep -qE "^e(xit)?$"
 					then
 						Clear_Lock
 						rm -f "/jffs/scripts/$SCRIPT_NAME" 2>/dev/null
@@ -3169,7 +3231,7 @@ Menu_Install()
 					elif [ ! -f "/sys/class/net/$iface_lower/operstate" ] || \
 					     [ "$(cat "/sys/class/net/$iface_lower/operstate")" = "down" ]
 					then
-						printf "\n${ERR}Input is not a valid interface or interface not up, please try again.${CLEARFORMAT}\n"
+						printf "\n${ERR}Input is NOT a valid interface or interface is NOT up. Please try again.${CLRct}\n"
 					else
 						WAN_IFACE="$iface_lower"
 						break
@@ -3192,13 +3254,15 @@ Menu_Install()
 
 	Update_File vnstat.conf
 	sed -i 's/^Interface .*$/Interface "'"$WAN_IFACE"'"/' "$VNSTAT_CONFIG"
-
-	Update_File vnstat-ui.asp
-	Update_File shared-jy.tar.gz
 	Update_File S33vnstat
 
-	Auto_Startup create 2>/dev/null
+	if "$mountWebGUI_OK"
+	then
+		Update_File vnstat-ui.asp
+		Update_File shared-jy.tar.gz
+	fi
 	Auto_Cron create 2>/dev/null
+	Auto_Startup create 2>/dev/null
 	Auto_ServiceEvent create 2>/dev/null
 	Shortcut_Script create
 
@@ -3289,12 +3353,14 @@ Menu_Startup()
 	Conf_Exists
 	ScriptStorageLocation load true
 	Create_Symlinks
-	Auto_Startup create 2>/dev/null
 	Auto_Cron create 2>/dev/null
+	Auto_Startup create 2>/dev/null
 	Auto_ServiceEvent create 2>/dev/null
 	Set_Version_Custom_Settings local "$SCRIPT_VERSION"
 	Shortcut_Script create
-	Mount_WebUI
+	if "$mountWebGUI_OK"
+	then Mount_WebUI
+	fi
 	VNStat_ServiceCheck
 	Clear_Lock
 }
@@ -3597,8 +3663,9 @@ Menu_Uninstall()
 		ps | grep -v grep | grep -v $$ | grep -i "$SCRIPT_NAME" | grep generate | awk '{print $1}' | xargs kill -9 >/dev/null 2>&1
 	fi
 	Print_Output true "Removing $SCRIPT_NAME..." "$PASS"
-	Auto_Startup delete 2>/dev/null
+
 	Auto_Cron delete 2>/dev/null
+	Auto_Startup delete 2>/dev/null
 	Auto_ServiceEvent delete 2>/dev/null
 	Shortcut_Script delete
 
@@ -3622,7 +3689,7 @@ Menu_Uninstall()
 
 	flock -u "$FD"
 	rm -f "$SCRIPT_DIR/vnstat-ui.asp"
-	rm -rf "$SCRIPT_WEB_DIR" 2>/dev/null
+	rm -fr "$SCRIPT_WEB_DIR" 2>/dev/null
 
 	if [ -f /opt/etc/init.d/S33vnstat ]
 	then
@@ -3837,8 +3904,8 @@ then
 	Conf_Exists
 	ScriptStorageLocation load
 	Create_Symlinks
-	Auto_Startup create 2>/dev/null
 	Auto_Cron create 2>/dev/null
+	Auto_Startup create 2>/dev/null
 	Auto_ServiceEvent create 2>/dev/null
 	Set_Version_Custom_Settings local "$SCRIPT_VERSION"
 	Shortcut_Script create
@@ -3946,8 +4013,8 @@ case "$1" in
 		Conf_Exists
 		ScriptStorageLocation load true
 		Create_Symlinks
-		Auto_Startup create 2>/dev/null
 		Auto_Cron create 2>/dev/null
+		Auto_Startup create 2>/dev/null
 		Auto_ServiceEvent create 2>/dev/null
 		Shortcut_Script create
 		Process_Upgrade
