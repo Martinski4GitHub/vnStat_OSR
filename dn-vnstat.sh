@@ -11,7 +11,7 @@
 ## Forked from https://github.com/de-vnull/vnstat-on-merlin ##
 ##                                                          ##
 ##############################################################
-# Last Modified: 2026-Apr-17
+# Last Modified: 2026-Apr-23
 #-------------------------------------------------------------
 
 ########         Shellcheck directives     ######
@@ -36,7 +36,7 @@
 ### Start of script variables ###
 readonly SCRIPT_NAME="dn-vnstat"
 readonly SCRIPT_VERSION="v2.0.14"
-readonly SCRIPT_VERSTAG="26041723"
+readonly SCRIPT_VERSTAG="26042322"
 SCRIPT_BRANCH="develop"
 SCRIPT_REPO="https://raw.githubusercontent.com/AMTM-OSR/vnstat-on-merlin/$SCRIPT_BRANCH"
 readonly SCRIPT_DIR="/jffs/addons/$SCRIPT_NAME.d"
@@ -2994,7 +2994,7 @@ MainMenu()
 	printf "  ${GRNct}uf${CLRct}. Force update %s with latest version\n\n" "$SCRIPT_NAME"
 	printf "   ${GRNct}e${CLRct}. Exit %s\n\n" "$SCRIPT_NAME"
 	printf "   ${GRNct}z${CLRct}. Uninstall %s\n" "$SCRIPT_NAME"
-	printf "\n${BOLD}######################################################${CLRct}\n\n"
+	printf "\n${BOLD}#############################################################${CLRct}\n\n"
 
 	while true
 	do
@@ -3220,7 +3220,7 @@ Menu_Install()
 				do
 					printf "\n${BOLD}The following interfaces are currently available:${CLRct}\n"
 					_GetCurrentActiveInterfaces_ MenuHR
-					printf "\n${BOLD}Please enter correct interface for vnstat:${CLRct}  "
+					printf "\n${BOLD}Please enter correct uplink interface for vnstat:${CLRct}  "
 					read -r iface
 					iface_lower="$(echo "$iface" | tr "A-Z" "a-z")"
 					if echo "$iface" | grep -qE "^e(xit)?$"
