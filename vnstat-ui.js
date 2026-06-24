@@ -1,5 +1,5 @@
 /**----------------------------**/
-/** Last Modified: 2026-Apr-04 **/
+/** Last Modified: 2026-Jun-24 **/
 /**----------------------------**/
 
 var maxNoCharts = 12;
@@ -151,6 +151,35 @@ function ScaleDataAllowance()
 		document.form.dnvnstat_dataallowance.value = (document.form.dnvnstat_dataallowance.value * 1 * 1000);
 	}
 	Format_DataAllowance(document.form.dnvnstat_dataallowance);
+}
+
+/**----------------------------------------------------------------**
+ ** Compatibility layer for the latest AsusWRT6 routers, such as
+ ** the GT-BE19000AI, where the previous global 'cookie' helper 
+ ** functions defined in the 'state.js' file are now removed in 
+ ** favour of using the "window.localStorage" property.
+ **----------------------------------------------------------------**/
+if (typeof window.cookie === "undefined" ||
+    typeof window.cookie.get !== "function" ||
+    typeof window.cookie.set !== "function")
+{
+    window.cookie = {
+        get: function (key) {
+            return window.localStorage.getItem(key);
+        },
+
+        /** In the previous 'cookie' function a 3rd argument was given for 'days' **/
+        /** Here, we ignore the value because there is no expiration date anymore **/
+        set: function (key, value, days) {
+            window.localStorage.setItem(key, String(value));
+        },
+
+        unset: function (key) {
+            window.localStorage.removeItem(key);
+        }
+    };
+
+    console.log("Installed localStorage compatibility for cookie API.");
 }
 
 function GetCookie(cookiename,returntype)
